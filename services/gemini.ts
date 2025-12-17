@@ -15,7 +15,7 @@ export const fileToBase64 = async (file: File): Promise<string> => {
   });
 };
 
-const ARTICLE_TYPES = [
+export const ARTICLE_TYPES = [
   "Review articles", "Research articles", "Encyclopedia", "Book chapters", 
   "Conference abstracts", "Book reviews", "Case reports", "Conference info", 
   "Correspondence", "Data articles", "Discussion", "Editorials", "Errata", 

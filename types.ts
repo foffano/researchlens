@@ -54,6 +54,16 @@ export type SuggestedColumn = {
   prompt?: string;
 };
 
+export interface FilterState {
+  searchQuery: string;
+  dateRange: {
+    start: string | null;
+    end: string | null;
+  };
+  articleTypes: string[];
+  publicationYears: string[];
+}
+
 // Extend global window interface for Electron
 declare global {
   interface Window {

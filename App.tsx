@@ -5,7 +5,8 @@ import { FileRow } from './components/FileRow';
 import { SettingsModal, AppSettings } from './components/SettingsModal';
 import { analyzePdf, fileToBase64 } from './services/gemini';
 import { FileEntry, ColumnConfig, Folder } from './types';
-import { Upload, Plus, Download } from 'lucide-react';
+import { Upload, Plus, Download, Search, Filter } from 'lucide-react';
+import { FilterMenu } from './components/FilterMenu';
 import {
   DndContext, 
   closestCenter,
@@ -126,6 +127,15 @@ const App: React.FC = () => {
       apiKey: import.meta.env.VITE_GEMINI_API_KEY || '', // Fallback to env if available 
       modelId: 'gemini-2.5-flash' 
     };
+  });
+
+  // --- State: Filters ---
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: '',
+    dateRange: { start: null, end: null },
+    articleTypes: [],
+    publicationYears: []
   });
 
   const handleSaveSettings = (newSettings: AppSettings) => {
@@ -255,8 +265,47 @@ const App: React.FC = () => {
   };
 
   const filteredFiles = files.filter(f => {
-    if (selectedFolderId === null) return true; // Show all files
-    return f.folderId === selectedFolderId;
+    // 1. Folder Filter
+    if (selectedFolderId !== null && f.folderId !== selectedFolderId) return false;
+
+    // 2. Search Query (Global Text Match)
+    if (filters.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      const meta = f.analysis?.metadata;
+      const title = meta?.title?.toLowerCase() || '';
+      const authors = meta?.authors?.join(' ').toLowerCase() || '';
+      const name = f.name.toLowerCase();
+      
+      // Also check content in dynamic columns
+      const dynamicContent = activeColumns.map(c => {
+         const val = f.analysis?.[c.id];
+         return typeof val === 'string' ? val.toLowerCase() : ''; 
+      }).join(' ');
+
+      if (!title.includes(q) && !authors.includes(q) && !name.includes(q) && !dynamicContent.includes(q)) {
+        return false;
+      }
+    }
+
+    // 3. Date Range Filter (Upload Date)
+    if (filters.dateRange.start) {
+       const fileDate = new Date(f.uploadDate).setHours(0,0,0,0);
+       const startDate = new Date(filters.dateRange.start).setHours(0,0,0,0);
+       if (fileDate < startDate) return false;
+    }
+    if (filters.dateRange.end) {
+       const fileDate = new Date(f.uploadDate).setHours(0,0,0,0);
+       const endDate = new Date(filters.dateRange.end).setHours(0,0,0,0);
+       if (fileDate > endDate) return false;
+    }
+
+    // 4. Article Type Filter
+    if (filters.articleTypes.length > 0) {
+      const type = f.analysis?.metadata?.articleType;
+      if (!type || !filters.articleTypes.includes(type)) return false;
+    }
+
+    return true;
   });
 
   const getPageTitle = () => {
@@ -629,7 +678,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0">
         
         {/* Top Header */}
-        <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0">
+        <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0 relative z-20">
             <div className="flex items-center gap-3">
                 <h1 className="text-lg font-semibold text-gray-800">{getPageTitle()}</h1>
                 {selectedFolderId && (
@@ -640,6 +689,45 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-3">
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search files..." 
+                    value={filters.searchQuery}
+                    onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                    className="pl-9 pr-4 py-2 w-64 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                  />
+                </div>
+
+                {/* Filter Button */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                    className={`p-2 rounded-lg border transition-colors relative ${
+                      isFilterMenuOpen || filters.articleTypes.length > 0 || filters.dateRange.start 
+                        ? 'bg-orange-50 border-orange-200 text-orange-600' 
+                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Filter size={20} />
+                    {/* Active Filter Indicator Dot */}
+                    {(filters.articleTypes.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white"></span>
+                    )}
+                  </button>
+
+                  <FilterMenu 
+                    isOpen={isFilterMenuOpen}
+                    onClose={() => setIsFilterMenuOpen(false)}
+                    filters={filters}
+                    onFilterChange={setFilters}
+                  />
+                </div>
+
+                <div className="h-6 w-px bg-gray-200 mx-2"></div>
+
                 <button 
                     onClick={handleExportCSV}
                     className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
