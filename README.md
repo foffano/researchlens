@@ -2,7 +2,7 @@
 
 ResearchLens AI is a powerful desktop application designed to supercharge academic research. Built with **Electron** and **React**, it leverages Google's **Gemini AI** models to automatically analyze, summarize, and extract structured data from research papers (PDFs).
 
-![ResearchLens AI](https://placeholder.com/researchlens-banner) 
+![ResearchLens AI](tela.png) 
 *(Note: Replace with actual screenshot)*
 
 ## 🚀 Features
