@@ -3,7 +3,8 @@ import {
   FileText,  Folder as FolderIcon,
   Plus,
   FolderOpen,
-  Settings
+  Settings,
+  Trash2
 } from 'lucide-react';
 import { Folder } from '../types';
 
@@ -12,6 +13,7 @@ interface SidebarProps {
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
   onCreateFolder: (name: string) => void;
+  onDeleteFolder: (id: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -20,6 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedFolderId, 
   onSelectFolder, 
   onCreateFolder,
+  onDeleteFolder,
   onOpenSettings
 }) => {
   const [isCreating, setIsCreating] = useState(false);
@@ -77,18 +80,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <nav className="space-y-1">
               {folders.map(folder => (
-                <button
-                  key={folder.id}
-                  onClick={() => onSelectFolder(folder.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    selectedFolderId === folder.id
-                      ? 'text-orange-700 bg-orange-50' 
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {selectedFolderId === folder.id ? <FolderOpen size={16} /> : <FolderIcon size={16} />}
-                  <span className="truncate">{folder.name}</span>
-                </button>
+                <div key={folder.id} className="group flex items-center gap-1 pr-2 rounded-md transition-colors hover:bg-gray-50">
+                  <button
+                    onClick={() => onSelectFolder(folder.id)}
+                    className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md truncate ${
+                      selectedFolderId === folder.id
+                        ? 'text-orange-700 bg-orange-50' 
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    {selectedFolderId === folder.id ? <FolderOpen size={16} /> : <FolderIcon size={16} />}
+                    <span className="truncate">{folder.name}</span>
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteFolder(folder.id);
+                    }}
+                    className="hidden group-hover:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                    title="Delete Folder"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               ))}
             </nav>
 

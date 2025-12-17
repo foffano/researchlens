@@ -267,6 +267,30 @@ const App: React.FC = () => {
     setSelectedFolderId(newFolder.id); // Auto-select new folder
   };
 
+  const handleDeleteFolder = (folderId: string) => {
+    if (confirm("Are you sure you want to delete this folder? Files inside will be moved to 'All Files'.")) {
+      // 1. Move files out of folder
+      setFiles(prev => prev.map(f => 
+        f.folderId === folderId ? { ...f, folderId: undefined } : f
+      ));
+
+      // 2. Remove folder
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+
+      // 3. Cleanup configs
+      setColumnConfigs(prev => {
+        const newConfigs = { ...prev };
+        delete newConfigs[folderId];
+        return newConfigs;
+      });
+
+      // 4. Reset selection if needed
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(null);
+      }
+    }
+  };
+
   const handleMoveFile = (fileId: string, folderId: string | undefined) => {
     setFiles(prev => prev.map(f => 
       f.id === fileId ? { ...f, folderId } : f
@@ -678,6 +702,7 @@ const App: React.FC = () => {
         selectedFolderId={selectedFolderId}
         onSelectFolder={setSelectedFolderId}
         onCreateFolder={handleCreateFolder}
+        onDeleteFolder={handleDeleteFolder}
         onOpenSettings={() => setShowSettings(true)}
       />
 
