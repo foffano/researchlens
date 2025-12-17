@@ -145,6 +145,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* About Section */}
+          <div className="pt-4 border-t border-gray-100 text-center">
+             <p className="text-xs text-gray-400">ResearchLens AI v0.1.0</p>
+             <p className="text-[10px] text-gray-400 mt-1">Copyright © 2025 Marlon Oliveira Alves Foffano</p>
+          </div>
         </div>
 
         {/* Footer */}
