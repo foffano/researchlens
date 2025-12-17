@@ -1,0 +1,127 @@
+import React, { useState } from 'react';
+import { ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { ColumnConfig, SuggestedColumn } from '../types';
+
+interface RightSidebarProps {
+  onAddColumn: (key: string, prompt?: string) => void;
+  activeColumns: ColumnConfig[];
+}
+
+// Only show columns that are actually implemented in the Gemini service/Types
+const SUGGESTIONS: SuggestedColumn[] = [
+  { id: 'summary', label: 'Summary', key: 'summary' },
+  { id: 'methods', label: 'Methodology', key: 'methods' },
+  { id: 'limitations', label: 'Limitations', key: 'limitations' },
+  { id: 'results', label: 'Key Results', key: 'results' },
+  { id: 'problemStatement', label: 'Problem Statement', key: 'problemStatement' },
+];
+
+export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns }) => {
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customPrompt, setCustomPrompt] = useState('');
+
+  const handleAddCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customName.trim() || !customPrompt.trim()) return;
+
+    // Create a key based on name, simplified
+    const key = 'custom_' + customName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
+    
+    onAddColumn(key, customPrompt);
+    
+    // Reset
+    setCustomName('');
+    setCustomPrompt('');
+    setIsCustomMode(false);
+  };
+
+  return (
+    <div className="w-80 border-l border-gray-200 bg-white h-screen flex flex-col">
+      <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+         <span className="font-semibold text-gray-700">Analysis Columns</span>
+      </div>
+
+      <div className="p-4 overflow-y-auto flex-1">
+        {/* Standard Suggestions */}
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Suggested</h3>
+        <div className="space-y-2 mb-8">
+          {SUGGESTIONS.map((col) => {
+            const isActive = activeColumns.find(c => c.id === col.key && c.visible);
+            return (
+              <button
+                key={col.id}
+                onClick={() => onAddColumn(col.key)}
+                disabled={!!isActive}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                  isActive 
+                    ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
+                    : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 border border-transparent hover:border-orange-100'
+                }`}
+              >
+                <Plus size={14} />
+                {col.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom Column Builder */}
+        <div className="border-t border-gray-100 pt-6">
+           <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Custom Column</h3>
+           </div>
+
+           {!isCustomMode ? (
+              <button 
+                onClick={() => setIsCustomMode(true)}
+                className="w-full py-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Sparkles size={16} />
+                Create New Column
+              </button>
+           ) : (
+             <form onSubmit={handleAddCustom} className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Column Name</label>
+                  <input 
+                    type="text" 
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="e.g. Funding Source"
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Instruction (Prompt)</label>
+                  <textarea 
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Extract the funding agencies mentioned..."
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 min-h-[80px]"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCustomMode(false)}
+                    className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={!customName || !customPrompt}
+                    className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-orange-600 rounded hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    Add Column
+                  </button>
+                </div>
+             </form>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+};
