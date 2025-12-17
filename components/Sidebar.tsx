@@ -125,6 +125,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* Disclaimer */}
+      <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <p className="text-[10px] text-gray-400 text-center leading-tight">
+          AI-generated content can be inaccurate. Please verify important information.
+        </p>
+      </div>
     </div>
   );
 };
