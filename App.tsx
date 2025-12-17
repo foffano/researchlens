@@ -5,7 +5,7 @@ import { FileRow } from './components/FileRow';
 import { SettingsModal, AppSettings } from './components/SettingsModal';
 import { analyzePdf, fileToBase64 } from './services/gemini';
 import { FileEntry, ColumnConfig, Folder } from './types';
-import { Upload, Plus, Download, Search, Filter } from 'lucide-react';
+import { Upload, Plus, Download, Search, Filter, Info } from 'lucide-react';
 import { FilterMenu } from './components/FilterMenu';
 import {
   DndContext, 
@@ -68,10 +68,11 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 interface SortableHeaderProps {
   id: string;
   label: string;
+  prompt?: string;
   onToggleVisibility: (id: string) => void;
 }
 
-const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, onToggleVisibility }) => {
+const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, onToggleVisibility }) => {
   const {
     attributes,
     listeners,
@@ -95,9 +96,23 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, onToggleVisi
       style={style} 
       {...attributes} 
       {...listeners}
-      className="flex-none w-[350px] p-3 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between bg-gray-50 select-none"
+      className="flex-none w-[350px] p-3 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between bg-gray-50 select-none group/header"
     >
-      {label}
+      <div className="flex items-center gap-2 min-w-0 relative">
+        <span className="truncate">{label}</span>
+        {prompt && (
+          <div className="group/tooltip relative shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+            <Info size={14} className="text-gray-400 hover:text-blue-600 cursor-help" />
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-[11px] leading-relaxed font-medium rounded-md shadow-2xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-[100] pointer-events-none text-left whitespace-normal border border-gray-700">
+              <span className="text-gray-400 text-[10px] uppercase tracking-wider font-bold block mb-1">Instruction</span>
+              {prompt}
+              {/* Arrow */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900"></div>
+            </div>
+          </div>
+        )}
+      </div>
+      
       <button 
         onClick={(e) => {
             e.stopPropagation(); // Prevent drag start when clicking close
@@ -776,7 +791,8 @@ const App: React.FC = () => {
                             <SortableHeader 
                               key={col.id} 
                               id={col.id} 
-                              label={col.label} 
+                              label={col.label}
+                              prompt={col.prompt}
                               onToggleVisibility={toggleColumnVisibility}
                             />
                         ))}
