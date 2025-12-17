@@ -6,10 +6,11 @@ const DATA_FILE = path.join(app.getPath('userData'), 'researchlens_data.json');
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1350,
+    width: 1200,
     height: 800,
-    minWidth: 1350,
-    minHeight: 800,
+    minWidth: 1000,
+    minHeight: 600,
+    icon: path.join(__dirname, '../public/logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,

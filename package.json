@@ -43,6 +43,7 @@
       "dist/**/*",
       "electron/**/*"
     ],
+    "icon": "public/logo.png",
     "win": {
       "target": "nsis",
       "forceCodeSigning": false,

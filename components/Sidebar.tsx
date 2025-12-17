@@ -41,9 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="w-64 border-r border-gray-200 bg-white h-screen flex flex-col hidden md:flex">
       {/* Header */}
       <div className="p-4 flex items-center gap-2 border-b border-gray-100">
-        <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-bold">
-          R
-        </div>
+        <img src="logo.png" alt="ResearchLens Logo" className="w-8 h-8 rounded-lg object-contain" />
         <span className="font-semibold text-gray-800">ResearchLens</span>
       </div>
 
