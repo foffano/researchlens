@@ -6,14 +6,16 @@ const DATA_FILE = path.join(app.getPath('userData'), 'researchlens_data.json');
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1200,
+    width: 1400,
     height: 800,
+    minWidth: 1400,
+    minHeight: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
     },
-    autoHideMenuBar: true, 
+    autoHideMenuBar: true,
   });
 
   // Open external links in default browser
