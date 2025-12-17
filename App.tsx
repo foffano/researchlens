@@ -195,6 +195,54 @@ const App: React.FC = () => {
     load();
   }, []);
 
+  // 1.5 Sync Root Columns (Ensure "All Files" sees all available columns)
+  useEffect(() => {
+      setColumnConfigs(prev => {
+          // Construct the ideal 'root' configuration:
+          // Start with all DEFAULT_COLUMNS, ensuring they are visible.
+          // Then append all savedCustomColumns, also ensuring they are visible.
+          const idealRootColumns: ColumnConfig[] = [
+              ...DEFAULT_COLUMNS.map(col => ({ ...col, visible: true })),
+              ...savedCustomColumns.map(customCol => ({
+                  id: customCol.id,
+                  label: customCol.label,
+                  visible: true,
+                  width: '350px', // Default width for custom columns
+                  prompt: customCol.prompt
+              }))
+          ];
+
+          // Filter out any potential duplicates by ID, prioritizing the order as defined (defaults then custom)
+          const uniqueIdealRootColumns: ColumnConfig[] = [];
+          const seenIds = new Set<string>();
+          idealRootColumns.forEach(col => {
+              if (!seenIds.has(col.id)) {
+                  uniqueIdealRootColumns.push(col);
+                  seenIds.add(col.id);
+              }
+          });
+
+          // Get the current 'root' config to compare
+          const currentRootConfig = prev['root'] || [];
+
+          // Compare the ideal configuration with the current one
+          // Check if lengths are the same and if all items match in ID and visibility status
+          const isSameConfig = uniqueIdealRootColumns.length === currentRootConfig.length &&
+                               uniqueIdealRootColumns.every((col, index) => 
+                                   col.id === currentRootConfig[index]?.id && col.visible === currentRootConfig[index]?.visible
+                               );
+
+          // Only update if the configuration is genuinely different to avoid unnecessary re-renders
+          if (!isSameConfig) {
+              return {
+                  ...prev,
+                  'root': uniqueIdealRootColumns
+              };
+          }
+          return prev;
+      });
+  }, [savedCustomColumns]); // This effect depends on savedCustomColumns to react to new custom columns
+
   // 2. Save Data on Change (Debounced could be better, but simple effect for now)
   // We skip saving if files is empty to avoid overwriting with initial empty state before load completes
   // BUT we need to handle the case where user genuinely deletes everything.
@@ -259,11 +307,13 @@ const App: React.FC = () => {
       name: name
     };
     setFolders(prev => [...prev, newFolder]);
-    // Initialize columns for new folder with default set
+    
+    // Initialize columns for new folder with ONLY the 'Files' column
     setColumnConfigs(prev => ({
         ...prev,
-        [newFolder.id]: DEFAULT_COLUMNS
+        [newFolder.id]: [{ id: 'fileInfo', label: 'Files', visible: true, width: '400px' }]
     }));
+    
     setSelectedFolderId(newFolder.id); // Auto-select new folder
   };
 
@@ -481,9 +531,18 @@ const App: React.FC = () => {
     setFiles(prev => [...newFiles, ...prev]);
 
     // Gather active columns with their prompts
-    const activeColumnDefs = activeColumns
-        .filter(c => c.visible && c.id !== 'fileInfo' && c.prompt)
-        .map(c => ({ id: c.id, prompt: c.prompt! }));
+    let activeColumnDefs: {id: string, prompt: string}[] = [];
+
+    if (selectedFolderId) {
+        // Normal behavior for folders: analyze visible columns
+        activeColumnDefs = activeColumns
+            .filter(c => c.visible && c.id !== 'fileInfo' && c.prompt)
+            .map(c => ({ id: c.id, prompt: c.prompt! }));
+    } else {
+        // Root behavior: analyze NOTHING extra (empty list), just metadata (handled by default in analyzePdf)
+        // Users must click "Analyze" manually for specific columns in All Files
+        activeColumnDefs = [];
+    }
 
     // Process each new file
     if (settings.apiKey) {
