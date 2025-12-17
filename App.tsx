@@ -5,7 +5,7 @@ import { FileRow } from './components/FileRow';
 import { SettingsModal, AppSettings } from './components/SettingsModal';
 import { analyzePdf, fileToBase64 } from './services/gemini';
 import { FileEntry, ColumnConfig, Folder } from './types';
-import { Upload, Plus, Download, Search, Filter, Info } from 'lucide-react';
+import { Upload, Plus, Download, Search, Filter, Info, Menu } from 'lucide-react';
 import { FilterMenu } from './components/FilterMenu';
 import {
   DndContext, 
@@ -147,6 +147,7 @@ const App: React.FC = () => {
   // --- State: Filters ---
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     dateRange: { start: null, end: null },
@@ -764,6 +765,8 @@ const App: React.FC = () => {
         onCreateFolder={handleCreateFolder}
         onDeleteFolder={handleDeleteFolder}
         onOpenSettings={() => setShowSettings(true)}
+        isOpen={isLeftSidebarOpen}
+        onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
       />
 
       <SettingsModal 
@@ -780,6 +783,14 @@ const App: React.FC = () => {
         {/* Top Header */}
         <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0 relative z-20">
             <div className="flex items-center gap-3">
+                {!isLeftSidebarOpen && (
+                  <button 
+                    onClick={() => setIsLeftSidebarOpen(true)} 
+                    className="p-2 -ml-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <Menu size={20} />
+                  </button>
+                )}
                 <h1 className="text-lg font-semibold text-gray-800">{getPageTitle()}</h1>
                 {selectedFolderId && (
                     <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">
