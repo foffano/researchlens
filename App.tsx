@@ -82,6 +82,9 @@ const App: React.FC = () => {
     'root': DEFAULT_COLUMNS
   });
 
+  // Store user-defined custom columns for reuse
+  const [savedCustomColumns, setSavedCustomColumns] = useState<{id: string, label: string, prompt: string}[]>([]);
+
   // --- Persistence Logic ---
   // 1. Load Data on Mount
   useEffect(() => {
@@ -93,6 +96,9 @@ const App: React.FC = () => {
           setFolders(data.folders || []);
           if (data.columnConfigs) {
             setColumnConfigs(data.columnConfigs);
+          }
+          if (data.customColumns) {
+            setSavedCustomColumns(data.customColumns);
           }
         }
       }
@@ -109,7 +115,8 @@ const App: React.FC = () => {
       const dataToSave = {
         files,
         folders,
-        columnConfigs
+        columnConfigs,
+        customColumns: savedCustomColumns
       };
       // Timeout to debounce slightly
       const timer = setTimeout(() => {
@@ -117,7 +124,7 @@ const App: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [files, folders, columnConfigs]);
+  }, [files, folders, columnConfigs, savedCustomColumns]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -352,6 +359,20 @@ const App: React.FC = () => {
         return { ...prev, [activeFolderKey]: newConfig };
     });
 
+    // 1b. Save to "My Columns" if it's a new custom column
+    if (customPrompt && !DEFAULT_COLUMNS.find(c => c.id === key)) {
+       setSavedCustomColumns(prev => {
+          if (prev.find(c => c.id === key)) return prev;
+          // Format label same as above
+          const label = key.replace('custom_', '').replace(/_[0-9]+$/, ''); 
+          return [...prev, { 
+             id: key, 
+             label: label.charAt(0).toUpperCase() + label.slice(1), 
+             prompt: customPrompt 
+          }];
+       });
+    }
+
     // 2. Identify existing completed files that are in the CURRENT view
     const filesToUpdate = filteredFiles.filter(f => f.status === 'completed');
 
@@ -364,6 +385,13 @@ const App: React.FC = () => {
     } else if (!settings.apiKey) {
       setShowSettings(true);
     }
+  };
+
+  const handleDeleteCustomColumn = (colId: string) => {
+      // Optional: Confirm before delete
+      if (window.confirm("Are you sure you want to remove this column from your saved list?")) {
+        setSavedCustomColumns(prev => prev.filter(c => c.id !== colId));
+      }
   };
 
   const handleAnalyzeColumn = (fileId: string, colId: string, prompt: string, modelId?: string) => {
@@ -595,7 +623,12 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <RightSidebar onAddColumn={handleAddColumn} activeColumns={activeColumns} />
+      <RightSidebar 
+        onAddColumn={handleAddColumn} 
+        activeColumns={activeColumns} 
+        savedCustomColumns={savedCustomColumns}
+        onDeleteCustomColumn={handleDeleteCustomColumn}
+      />
     </div>
   );
 };

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { ArrowRight, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { ColumnConfig, SuggestedColumn } from '../types';
 
 interface RightSidebarProps {
   onAddColumn: (key: string, prompt?: string) => void;
   activeColumns: ColumnConfig[];
+  savedCustomColumns?: { id: string, label: string, prompt: string }[];
+  onDeleteCustomColumn?: (id: string) => void;
 }
 
 // Only show columns that are actually implemented in the Gemini service/Types
@@ -16,7 +18,7 @@ const SUGGESTIONS: SuggestedColumn[] = [
   { id: 'problemStatement', label: 'Problem Statement', key: 'problemStatement' },
 ];
 
-export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns }) => {
+export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns, savedCustomColumns = [], onDeleteCustomColumn }) => {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
@@ -65,6 +67,46 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
             );
           })}
         </div>
+
+        {/* Saved Custom Columns */}
+        {savedCustomColumns.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Columns</h3>
+            <div className="space-y-2">
+              {savedCustomColumns.map((col) => {
+                const isActive = activeColumns.find(c => c.id === col.id && c.visible);
+                return (
+                  <div key={col.id} className="group flex items-center gap-1">
+                    <button
+                      onClick={() => onAddColumn(col.id, col.prompt)}
+                      disabled={!!isActive}
+                      className={`grow flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                        isActive 
+                          ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
+                          : 'text-purple-700 hover:bg-purple-50 hover:text-purple-800 border border-transparent hover:border-purple-100'
+                      }`}
+                    >
+                      <Plus size={14} />
+                      {col.label}
+                    </button>
+                    {onDeleteCustomColumn && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteCustomColumn(col.id);
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                            title="Delete saved column"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Custom Column Builder */}
         <div className="border-t border-gray-100 pt-6">
