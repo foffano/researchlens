@@ -6,6 +6,23 @@ import { SettingsModal, AppSettings } from './components/SettingsModal';
 import { analyzePdf, fileToBase64 } from './services/gemini';
 import { FileEntry, ColumnConfig, Folder } from './types';
 import { Upload, Plus, Download } from 'lucide-react';
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Include prompts in default config so they are self-contained
 const DEFAULT_COLUMNS: ColumnConfig[] = [
@@ -46,6 +63,53 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
     prompt: "Any limitations, future work, or weaknesses mentioned."
   },
 ];
+
+interface SortableHeaderProps {
+  id: string;
+  label: string;
+  onToggleVisibility: (id: string) => void;
+}
+
+const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, onToggleVisibility }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    cursor: isDragging ? 'grabbing' : 'grab',
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners}
+      className="flex-none w-[350px] p-3 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between bg-gray-50 select-none"
+    >
+      {label}
+      <button 
+        onClick={(e) => {
+            e.stopPropagation(); // Prevent drag start when clicking close
+            onToggleVisibility(id);
+        }} 
+        className="text-gray-400 hover:text-red-500 cursor-pointer"
+        onPointerDown={(e) => e.stopPropagation()} // Important to stop drag initiation
+      >
+        ×
+      </button>
+    </div>
+  );
+};
 
 const App: React.FC = () => {
   // --- State: Data ---
@@ -132,6 +196,37 @@ const App: React.FC = () => {
   const activeFolderKey = selectedFolderId || 'root';
   const activeColumns = columnConfigs[activeFolderKey] || DEFAULT_COLUMNS;
 
+  // --- DnD Logic ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag starts (prevents accidental drags on clicks)
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setColumnConfigs((prev) => {
+        const currentConfig = prev[activeFolderKey] || DEFAULT_COLUMNS;
+        const oldIndex = currentConfig.findIndex((col) => col.id === active.id);
+        const newIndex = currentConfig.findIndex((col) => col.id === over?.id);
+
+        const newConfig = arrayMove(currentConfig, oldIndex, newIndex);
+        
+        return {
+          ...prev,
+          [activeFolderKey]: newConfig,
+        };
+      });
+    }
+  };
+  
   // --- Folder Logic ---
   const handleCreateFolder = (name: string) => {
     const newFolder: Folder = {
@@ -575,21 +670,36 @@ const App: React.FC = () => {
         <div className="flex-1 overflow-auto bg-white relative">
              <div className="min-w-max">
                 {/* Table Header */}
-                <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-                    <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
-                        Files ({filteredFiles.length})
-                    </div>
-                    {activeColumns.filter(c => c.id !== 'fileInfo' && c.visible).map(col => (
-                        <div key={col.id} className="flex-none w-[350px] p-3 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between bg-gray-50">
-                            {col.label}
-                            <button onClick={() => toggleColumnVisibility(col.id)} className="text-gray-400 hover:text-red-500">×</button>
-                        </div>
-                    ))}
-                    {/* Add Column Placeholder in Header */}
-                    <div className="flex-none w-[100px] p-3 flex items-center justify-center">
-                         <button className="p-1 rounded hover:bg-gray-200 text-gray-400"><Plus size={16}/></button>
-                    </div>
-                </div>
+                <DndContext 
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                      <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                          Files ({filteredFiles.length})
+                      </div>
+                      
+                      <SortableContext 
+                        items={activeColumns.filter(c => c.id !== 'fileInfo' && c.visible).map(c => c.id)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        {activeColumns.filter(c => c.id !== 'fileInfo' && c.visible).map(col => (
+                            <SortableHeader 
+                              key={col.id} 
+                              id={col.id} 
+                              label={col.label} 
+                              onToggleVisibility={toggleColumnVisibility}
+                            />
+                        ))}
+                      </SortableContext>
+
+                      {/* Add Column Placeholder in Header */}
+                      <div className="flex-none w-[100px] p-3 flex items-center justify-center">
+                          <button className="p-1 rounded hover:bg-gray-200 text-gray-400"><Plus size={16}/></button>
+                      </div>
+                  </div>
+                </DndContext>
 
                 {/* Table Body */}
                 <div className="bg-white">

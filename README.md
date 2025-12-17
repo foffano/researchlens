@@ -5,6 +5,32 @@ ResearchLens AI is a powerful desktop application designed to supercharge academ
 ![ResearchLens AI](tela.png) 
 *(Note: Replace with actual screenshot)*
 
+## 🔬 Scientific Methodology & System Architecture
+
+ResearchLens AI employs a systematic, multimodal approach to automated literature analysis, ensuring high fidelity in data extraction and synthesis. The system architecture is designed to minimize information loss by processing raw document data directly through large language models (LLMs).
+
+### 1. Direct Multimodal Processing
+Unlike traditional systems that rely on intermediate OCR (Optical Character Recognition) or text extraction libraries (which often lose formatting, tables, and non-linear text flow), ResearchLens AI utilizes **native multimodal capabilities**.
+*   **Input Handling**: PDF documents are converted into Base64 encoded streams client-side using standard `FileReader` APIs.
+*   **Zero-Loss Ingestion**: The raw PDF binary data is transmitted directly to the Google Gemini model (e.g., `gemini-1.5-flash`) via the `application/pdf` MIME type context. This allows the model to "see" the document layout, identifying headers, footnotes, and sidebars essentially as a human reader would.
+
+### 2. Structured Extraction Protocol
+To ensure scientific rigor and data consistency, the system implements a **Dual-Phase Dynamic Prompting** strategy enforced by a strict JSON schema:
+
+#### Phase A: Bibliographic Metadata Extraction
+Every document undergoes a mandatory extraction pass for core citation data. The model is instructed to identify and normalize:
+*   **Citation Details**: Title, Author list, Publication Year, and DOI/URL.
+*   **Taxonomy Classification**: The system classifies documents into one of 23 predefined academic categories (e.g., *Research articles, Review articles, Clinical Trials, Meta-analyses*), enabling precise filtering and bibliometrics.
+
+#### Phase B: Targeted Semantic Analysis
+The system performs extraction based on user-defined "Analysis Columns". Each column represents a specific research question or data point.
+*   **Prompt Engineering**: Each active column (e.g., "Methods", "Results") generates a specific sub-instruction within the master prompt (e.g., *"Extract the methodology, study design, or datasets used"*).
+*   **Schema Enforcement**: The output is constrained to a rigorous JSON structure defined via the Google GenAI SDK's `responseSchema`. This guarantees that fields like "Results" are returned as structured arrays or text strings, eliminating hallucinated formatting and facilitating CSV export.
+
+### 3. Data Integrity & Persistence
+*   **Atomic Analysis Units**: Each analysis is treated as an atomic transaction. Results are watermarked with the specific model version used (`_models` metadata), allowing researchers to track which generation of AI produced a specific insight.
+*   **Local-First Persistence**: To maintain data sovereignty and privacy, all analysis results are serialized and stored locally in a `researchlens_data.json` file via Electron's IPC (Inter-Process Communication) layer. No document data is stored on external servers beyond the transient processing window of the API call.
+
 ## 🚀 Features
 
 - **📄 Automated PDF Analysis**: Drag and drop research papers to automatically extract metadata (Title, Authors, Publication Year, DOI, Article Type).
