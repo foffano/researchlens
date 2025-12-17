@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowRight, Plus, Sparkles, Trash2, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { ColumnConfig, SuggestedColumn } from '../types';
 
 interface RightSidebarProps {
@@ -7,6 +7,8 @@ interface RightSidebarProps {
   activeColumns: ColumnConfig[];
   savedCustomColumns?: { id: string, label: string, prompt: string }[];
   onDeleteCustomColumn?: (id: string) => void;
+  isOpen: boolean;
+  onToggle: () => void;
 }
 
 // Only show columns that are actually implemented in the Gemini service/Types
@@ -18,7 +20,7 @@ const SUGGESTIONS: SuggestedColumn[] = [
   { id: 'problemStatement', label: 'Problem Statement', key: 'problemStatement' },
 ];
 
-export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns, savedCustomColumns = [], onDeleteCustomColumn }) => {
+export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns, savedCustomColumns = [], onDeleteCustomColumn, isOpen, onToggle }) => {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
@@ -39,54 +41,77 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
   };
 
   return (
-    <div className="w-80 border-l border-gray-200 bg-white h-screen flex flex-col">
-      <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-         <span className="font-semibold text-gray-700">Analysis Columns</span>
-      </div>
+    <div className={`
+      relative border-l border-gray-200 bg-white h-screen flex flex-col transition-all duration-300 ease-in-out z-30
+      ${isOpen ? 'w-80 translate-x-0' : 'w-0 translate-x-0 border-l-0'} 
+    `}>
+       {/* Toggle Button visible even when closed */}
+       <button
+          onClick={onToggle}
+          className={`
+            absolute top-20 -left-8
+            w-8 h-10 bg-white border border-gray-200 border-r-0 rounded-l-md 
+            flex items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-500
+            shadow-sm z-50
+            transition-transform duration-300
+          `}
+          title={isOpen ? "Close sidebar" : "Open sidebar"}
+       >
+          {isOpen ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+       </button>
 
-      <div className="p-4 overflow-y-auto flex-1">
-        {/* Standard Suggestions */}
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Suggested</h3>
-        <div className="space-y-2 mb-8">
-          {SUGGESTIONS.map((col) => {
-            const isActive = activeColumns.find(c => c.id === col.key && c.visible);
-            return (
-              <button
-                key={col.id}
-                onClick={() => onAddColumn(col.key)}
-                disabled={!!isActive}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                  isActive 
-                    ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
-                    : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 border border-transparent hover:border-orange-100'
-                }`}
-              >
-                <Plus size={14} />
-                {col.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Content Container - Fixed width to prevent squashing during transition */}
+      <div className={`flex flex-col h-full w-80 overflow-hidden ${!isOpen && 'opacity-0 invisible transition-opacity duration-200'}`}>
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+             <span className="font-semibold text-gray-700">Analysis Columns</span>
+             <button onClick={onToggle} className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100">
+                <X size={18} />
+             </button>
+          </div>
 
-        {/* Saved Custom Columns */}
-        {savedCustomColumns.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Columns</h3>
-            <div className="space-y-2">
-              {savedCustomColumns.map((col) => {
-                const isActive = activeColumns.find(c => c.id === col.id && c.visible);
+          <div className="p-4 overflow-y-auto flex-1">
+            {/* Standard Suggestions */}
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Suggested</h3>
+            <div className="space-y-2 mb-8">
+              {SUGGESTIONS.map((col) => {
+                const isActive = activeColumns.find(c => c.id === col.key && c.visible);
                 return (
-                  <div key={col.id} className="group flex items-center gap-1">
-                    <button
-                      onClick={() => onAddColumn(col.id, col.prompt)}
-                      disabled={!!isActive}
-                      className={`grow flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                        isActive 
-                          ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
-                          : 'text-purple-700 hover:bg-purple-50 hover:text-purple-800 border border-transparent hover:border-purple-100'
-                      }`}
-                    >
-                      <Plus size={14} />
+                  <button
+                    key={col.id}
+                    onClick={() => onAddColumn(col.key)}
+                    disabled={!!isActive}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                      isActive 
+                        ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
+                        : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 border border-transparent hover:border-orange-100'
+                    }`}
+                  >
+                    <Plus size={14} />
+                    {col.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Saved Custom Columns */}
+            {savedCustomColumns.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Columns</h3>
+                <div className="space-y-2">
+                  {savedCustomColumns.map((col) => {
+                    const isActive = activeColumns.find(c => c.id === col.id && c.visible);
+                    return (
+                      <div key={col.id} className="group flex items-center gap-1">
+                        <button
+                          onClick={() => onAddColumn(col.id, col.prompt)}
+                          disabled={!!isActive}
+                          className={`grow flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                            isActive 
+                              ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
+                              : 'text-purple-700 hover:bg-purple-50 hover:text-purple-800 border border-transparent hover:border-purple-100'
+                          }`}
+                        >
+                          <Plus size={14} />
                       {col.label}
                     </button>
                     {onDeleteCustomColumn && (
@@ -163,6 +188,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
              </form>
            )}
         </div>
+      </div>
       </div>
     </div>
   );

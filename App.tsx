@@ -146,6 +146,7 @@ const App: React.FC = () => {
 
   // --- State: Filters ---
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     dateRange: { start: null, end: null },
@@ -884,7 +885,12 @@ const App: React.FC = () => {
 
                       {/* Add Column Placeholder in Header */}
                       <div className="flex-none w-[100px] p-3 flex items-center justify-center">
-                          <button className="p-1 rounded hover:bg-gray-200 text-gray-400"><Plus size={16}/></button>
+                          <button 
+                            onClick={() => setIsRightSidebarOpen(true)}
+                            className="p-1 rounded hover:bg-gray-200 text-gray-400"
+                          >
+                            <Plus size={16}/>
+                          </button>
                       </div>
                   </div>
                 </DndContext>
@@ -926,6 +932,8 @@ const App: React.FC = () => {
         activeColumns={activeColumns} 
         savedCustomColumns={savedCustomColumns}
         onDeleteCustomColumn={handleDeleteCustomColumn}
+        isOpen={isRightSidebarOpen}
+        onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
       />
     </div>
   );
