@@ -1,7 +1,6 @@
 # ResearchLens AI: Automated Scientific Literature Analysis System
 
 ![ResearchLens AI](tela.png)
-*(Note: Replace with actual screenshot)*
 
 ## Abstract
 ResearchLens AI is a desktop application designed to address the critical challenge of information overload in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first, privacy-preserving environment for researchers to process literature at scale, ensuring high fidelity in bibliographic metadata extraction and semantic analysis without relying on traditional, error-prone OCR pipelines.
@@ -28,7 +27,19 @@ ResearchLens AI is built on a modern web technology stack (Electron, React, Type
 *   **Google Gemini API Key**: Required for AI processing. Get one [here](https://aistudio.google.com/app/apikey).
 *   **Node.js**: (For building from source only) v16 or higher.
 
-### Option A: Running from Source (For Developers)
+### Option A: Windows Installer (Recommended)
+
+For Windows users, the easiest way to install ResearchLens AI is via the pre-built installer:
+
+1.  **Download**: Visit the [Official Release Page](https://github.com/foffano/researchlens/releases/tag/v1.0.0).
+2.  **Install**: Download the `.exe` file and run it. The application will automatically install and launch.
+
+3.  **Note on Windows Security**:
+    Since this is an open-source project without a paid code signing certificate, Windows Defender SmartScreen may flag the installer as "unrecognized".
+    *   Click **"More info"** → **"Run anyway"** to proceed.
+    *   This is a standard warning for unsigned software on Windows.
+
+### Option B: Running from Source (For Developers)
 
 1.  **Clone the Repository**:
     ```bash
