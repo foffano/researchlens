@@ -31,7 +31,7 @@ ResearchLens AI is built on a modern web technology stack (Electron, React, Type
 
 For Windows users, the easiest way to install ResearchLens AI is via the pre-built installer:
 
-1.  **Download**: Visit the [Official Release Page](https://github.com/foffano/researchlens/releases/tag/v1.0.0).
+1.  **Download**: Visit the [Official Release Page](https://github.com/foffano/researchlens/releases/).
 2.  **Install**: Download the `.exe` file and run it. The application will automatically install and launch.
 
 3.  **Note on Windows Security**:
@@ -43,8 +43,8 @@ For Windows users, the easiest way to install ResearchLens AI is via the pre-bui
 
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/yourusername/researchlens-ai.git
-    cd researchlens-ai
+    git clone https://github.com/foffano/researchlens.git
+    cd researchlens
     ```
 
 2.  **Install Dependencies**:
@@ -73,7 +73,7 @@ The typical workflow for a researcher using ResearchLens AI follows three main s
 ### Step 1: Configuration
 Upon first launch, navigate to the **Settings** (gear icon) in the sidebar.
 1.  Enter your **Google Gemini API Key**.
-2.  Select your preferred **Model Version** (e.g., `gemini-1.5-flash` for speed, or `gemini-1.5-pro` for complex reasoning).
+2.  Select your preferred **Model Version** (e.g., `gemini-2.5-flash` for speed, or `gemini-3-pro-preview` for complex reasoning).
 
 ### Step 2: Document Ingestion
 *   **Import**: Drag and drop PDF files directly into the application window.
