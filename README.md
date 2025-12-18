@@ -1,125 +1,112 @@
-# ResearchLens AI
+# ResearchLens AI: Automated Scientific Literature Analysis System
 
-ResearchLens AI is a powerful desktop application designed to supercharge academic research. Built with **Electron** and **React**, it leverages Google's **Gemini AI** models to automatically analyze, summarize, and extract structured data from research papers (PDFs).
-
-![ResearchLens AI](tela.png) 
+![ResearchLens AI](tela.png)
 *(Note: Replace with actual screenshot)*
 
-## 🔬 Scientific Methodology & System Architecture
+## Abstract
+ResearchLens AI is a desktop application designed to address the critical challenge of information overload in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first, privacy-preserving environment for researchers to process literature at scale, ensuring high fidelity in bibliographic metadata extraction and semantic analysis without relying on traditional, error-prone OCR pipelines.
 
-ResearchLens AI employs a systematic, multimodal approach to automated literature analysis, ensuring high fidelity in data extraction and synthesis. The system architecture is designed to minimize information loss by processing raw document data directly through large language models (LLMs).
+---
 
-### 1. Direct Multimodal Processing
-Unlike traditional systems that rely on intermediate OCR (Optical Character Recognition) or text extraction libraries (which often lose formatting, tables, and non-linear text flow), ResearchLens AI utilizes **native multimodal capabilities**.
-*   **Input Handling**: PDF documents are converted into Base64 encoded streams client-side using standard `FileReader` APIs.
-*   **Zero-Loss Ingestion**: The raw PDF binary data is transmitted directly to the Google Gemini model (e.g., `gemini-1.5-flash`) via the `application/pdf` MIME type context. This allows the model to "see" the document layout, identifying headers, footnotes, and sidebars essentially as a human reader would.
+## 1. Purpose of the Software
 
-### 2. Structured Extraction Protocol
-To ensure scientific rigor and data consistency, the system implements a **Dual-Phase Dynamic Prompting** strategy enforced by a strict JSON schema:
+In the modern scientific landscape, researchers are inundated with an ever-growing volume of literature. Traditional methods of manual review are time-consuming and prone to human error. Existing automated tools often rely on brittle text extraction methods that fail to capture the nuance of complex document layouts, tables, and non-linear text.
 
-#### Phase A: Bibliographic Metadata Extraction
-Every document undergoes a mandatory extraction pass for core citation data. The model is instructed to identify and normalize:
-*   **Citation Details**: Title, Author list, Publication Year, and DOI/URL.
-*   **Taxonomy Classification**: The system classifies documents into one of 23 predefined academic categories (e.g., *Research articles, Review articles, Clinical Trials, Meta-analyses*), enabling precise filtering and bibliometrics.
+**ResearchLens AI** was developed to:
+1.  **Accelerate Literature Review**: Drastically reduce the time required to screen and analyze papers.
+2.  **Enhance Data Accuracy**: Utilize multimodal AI to "see" documents as humans do, preserving context often lost in plain-text conversion.
+3.  **Facilitate Structured Synthesis**: Convert unstructured PDF content into structured, exportable data (JSON/CSV) suitable for bibliometric analysis and systematic reviews.
+4.  **Ensure Data Sovereignty**: Operate within a local environment where research data remains on the user's machine, addressing privacy concerns associated with cloud-only platforms.
 
-#### Phase B: Targeted Semantic Analysis
-The system performs extraction based on user-defined "Analysis Columns". Each column represents a specific research question or data point.
-*   **Prompt Engineering**: Each active column (e.g., "Methods", "Results") generates a specific sub-instruction within the master prompt (e.g., *"Extract the methodology, study design, or datasets used"*).
-*   **Schema Enforcement**: The output is constrained to a rigorous JSON structure defined via the Google GenAI SDK's `responseSchema`. This guarantees that fields like "Results" are returned as structured arrays or text strings, eliminating hallucinated formatting and facilitating CSV export.
+---
 
-### 3. Data Integrity & Persistence
-*   **Atomic Analysis Units**: Each analysis is treated as an atomic transaction. Results are watermarked with the specific model version used (`_models` metadata), allowing researchers to track which generation of AI produced a specific insight.
-*   **Local-First Persistence**: To maintain data sovereignty and privacy, all analysis results are serialized and stored locally in a `researchlens_data.json` file via Electron's IPC (Inter-Process Communication) layer. No document data is stored on external servers beyond the transient processing window of the API call.
+## 2. Installation
 
-## 🚀 Features
-
-- **📄 Automated PDF Analysis**: Drag and drop research papers to automatically extract metadata (Title, Authors, Publication Year, DOI, Article Type).
-- **🧠 Intelligent Extraction**: Pre-configured prompts to extract:
-  - Problem Statements
-  - Key Results & Findings
-  - Methodologies
-  - Summaries
-  - Limitations
-- **✍️ Custom Analysis Columns**: Define your own extraction columns with custom natural language prompts (e.g., "What dataset was used?", "What is the main contribution?").
-- **📂 Organization**: Create folders to manage different research projects or topics.
-- **⚡ Model Flexibility**: Switch between different Gemini models (e.g., Gemini 1.5 Flash, Gemini 2.5 Flash) for cost/performance optimization.
-- **📤 Data Export**: Export your entire analysis library or specific folders to CSV for further use in Excel or other tools.
-- **🔒 Privacy-Focused**: Your data and API keys are stored locally on your machine.
-
-## 🛠️ Tech Stack
-
-- **Core**: [Electron](https://www.electronjs.org/), [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
-- **AI Integration**: [Google GenAI SDK](https://github.com/google/google-gemini-client)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) (via CDN)
-- **Icons**: [Lucide React](https://lucide.dev/)
-
-## 🏁 Getting Started
+ResearchLens AI is built on a modern web technology stack (Electron, React, TypeScript) and can be installed on Windows, macOS, or Linux.
 
 ### Prerequisites
+*   **Google Gemini API Key**: Required for AI processing. Get one [here](https://aistudio.google.com/app/apikey).
+*   **Node.js**: (For building from source only) v16 or higher.
 
-- [Node.js](https://nodejs.org/) (v16 or higher recommended)
-- A [Google Gemini API Key](https://aistudio.google.com/app/apikey)
+### Option A: Running from Source (For Developers)
 
-### Installation
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/yourusername/researchlens-ai.git
+    cd researchlens-ai
+    ```
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/researchlens-ai.git
-   cd researchlens-ai
-   ```
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+3.  **Launch Application**:
+    *   **Development Mode** (Hot-reload enabled):
+        ```bash
+        npm run electron:dev
+        ```
+    *   **Production Build**:
+        To create an executable installer:
+        ```bash
+        npm run electron:build
+        ```
+        The output files will be generated in the `release` directory (e.g., `release/win-unpacked/ResearchLens AI.exe`).
 
-3. **(Optional) Environment Setup**
-   Create a `.env.local` file in the root directory if you want to bundle a default API key (not recommended for public repos):
-   ```env
-   VITE_GEMINI_API_KEY=your_api_key_here
-   ```
+---
 
-## 🏃‍♂️ Usage
+## 3. Use
 
-### Development Mode
+The typical workflow for a researcher using ResearchLens AI follows three main stages: **Import**, **Analysis**, and **Synthesis**.
 
-You can run the application in two modes:
+### Step 1: Configuration
+Upon first launch, navigate to the **Settings** (gear icon) in the sidebar.
+1.  Enter your **Google Gemini API Key**.
+2.  Select your preferred **Model Version** (e.g., `gemini-1.5-flash` for speed, or `gemini-1.5-pro` for complex reasoning).
 
-1. **Web Browser Mode** (UI only, limited file system access):
-   ```bash
-   npm run dev
-   ```
+### Step 2: Document Ingestion
+*   **Import**: Drag and drop PDF files directly into the application window.
+*   **Organization**: Create project-specific folders to manage distinct literature sets (e.g., "Systematic Review 2024").
 
-2. **Electron Desktop Mode** (Full functionality):
-   ```bash
-   npm run electron:dev
-   ```
+### Step 3: Automated Analysis
+The software automatically performs a two-phase analysis on every uploaded document:
 
-### Building for Production
+1.  **Bibliographic Extraction**: Automatically identifies Title, Authors, Publication Year, DOI, and Document Type (e.g., Clinical Trial, Review Article).
+2.  **Semantic Querying**:
+    *   Use the "Custom Columns" feature to ask specific research questions across your entire library.
+    *   *Example Queries*: "What was the sample size?", "What statistical tests were used?", "Limitaitons of the study".
+    *   The system extracts these specific data points for every paper in the folder.
 
-To create a distributable installer for your OS (Windows, macOS, or Linux):
+### Step 4: Export and Synthesis
+*   **Data Export**: Click the "Export" button to generate a CSV file containing all extracted metadata and analysis results. This file is formatted for direct import into statistical software (SPSS, R) or spreadsheet managers (Excel) for the final stages of your systematic review.
 
-```bash
-npm run electron:build
-```
-The output files will be generated in the `release` directory.
+---
 
-### Build Output
+## 4. Scientific Methodology & System Architecture
 
-After building, you can find the executable in:
-- **Unpacked (Portable)**: `release/win-unpacked/ResearchLens AI.exe`
-- **Installers**: (If configured) will also appear in the `release/` root folder.
+ResearchLens AI employs a novel architecture designed to maximize trust and reproducibility in AI-assisted research.
 
-## ⚙️ Configuration
+### Direct Multimodal Processing
+Unlike systems that use OCR (Optical Character Recognition) to convert PDFs to error-prone text, ResearchLens AI transmits the **raw PDF binary** directly to the multimodal context window of the underlying Large Language Model.
+*   **Benefit**: The model perceives layout, charts, footnotes, and sidebars essentially as a human reader would, significantly reducing hallucination rates caused by broken text streams.
 
-1. **API Key**: On first launch, click the **Settings** (gear icon) in the sidebar. Enter your Google Gemini API Key.
-2. **Model Selection**: You can also select which Gemini model version to use for analysis in the settings.
+### Structured Extraction Protocol
+To ensure scientific rigor, the system uses a **Dual-Phase Dynamic Prompting** strategy enforced by a strict JSON schema:
+*   **Schema Enforcement**: The output is constrained to a rigorous structure. This guarantees that fields like "Results" or "Methodology" are returned as consistent data types, eliminating unstructured "chatty" responses common in general-purpose chatbots.
 
-## 🤝 Contributing
+### Data Integrity
+*   **Atomic Analysis**: Each document analysis is an independent transaction.
+*   **Traceability**: Results are watermarked with the specific model version used, allowing researchers to report exactly which AI model assisted in their review.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+---
 
-## 📄 License
+## 5. Technical Specifications
 
-[Apache-2.0](LICENSE)
+*   **Framework**: Electron (Cross-platform desktop runtime)
+*   **Frontend**: React + TypeScript + Tailwind CSS
+*   **AI Engine**: Google GenAI SDK (Gemini Models)
+*   **Build System**: Vite
+
+## 6. License
+
+This project is licensed under the **Apache-2.0 License** - see the [LICENSE](LICENSE) file for details.
