@@ -9,6 +9,7 @@ interface FileRowProps {
   onMoveFile: (fileId: string, folderId: string | undefined) => void;
   onDelete: (fileId: string) => void;
   onAnalyzeColumn: (fileId: string, colId: string, prompt: string, modelId?: string) => void;
+  fontSize: 'small' | 'medium' | 'large';
 }
 
 const formatModelName = (modelId?: string) => {
@@ -16,13 +17,26 @@ const formatModelName = (modelId?: string) => {
     return modelId.replace('gemini-', '').replace('pro', 'Pro').replace('flash', 'Flash').replace('preview', '(Pre)');
 };
 
-export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMoveFile, onDelete, onAnalyzeColumn }) => {
+export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMoveFile, onDelete, onAnalyzeColumn, fontSize = 'medium' }) => {
   // Use extracted metadata if available, otherwise fallback to filename
   const displayTitle = file.analysis?.metadata?.title || file.name;
   const displayAuthors = file.analysis?.metadata?.authors?.join(", ");
   const displayYear = file.analysis?.metadata?.publicationYear;
   const displayDoi = file.analysis?.metadata?.doi;
   const displayType = file.analysis?.metadata?.articleType;
+
+  // Font Size Mapping
+  const textSizeClass = {
+      'small': 'text-xs',
+      'medium': 'text-sm',
+      'large': 'text-base'
+  }[fontSize];
+
+  const titleSizeClass = {
+      'small': 'text-xs',
+      'medium': 'text-sm',
+      'large': 'text-base'
+  }[fontSize];
 
   // Menu State
   const [activeMenuCol, setActiveMenuCol] = useState<string | null>(null);
@@ -98,7 +112,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                 </div>
              </div>
              <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-gray-900 leading-snug pr-2">
+                <h4 className={`${titleSizeClass} font-semibold text-gray-900 leading-snug pr-2`}>
                     {displayTitle}
                 </h4>
                 
@@ -201,7 +215,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                         ? 'bg-orange-50 animate-pulse ring-1 ring-inset ring-orange-200'
                         : 'bg-white'
                 }`}>
-                    <div className="p-4 text-sm text-gray-600 leading-relaxed break-words">
+                    <div className={`p-4 ${textSizeClass} text-gray-600 leading-relaxed break-words`}>
                         {isAnalyzingColumn ? (
                             <div className="space-y-2 opacity-50">
                                 <div className="h-2 bg-orange-200 rounded w-3/4"></div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, Cpu, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Key, Cpu, Trash2, CheckCircle, AlertCircle, Type } from 'lucide-react';
 import { AVAILABLE_MODELS_CONFIG } from '../types';
 
 export interface AppSettings {
   apiKey: string;
   modelId: string;
+  fontSize: 'small' | 'medium' | 'large';
 }
 
 interface SettingsModalProps {
@@ -24,6 +25,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState(initialSettings.apiKey);
   const [modelId, setModelId] = useState(initialSettings.modelId);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>(initialSettings.fontSize || 'medium');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Reset local state when modal opens
@@ -31,6 +33,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (isOpen) {
       setApiKey(initialSettings.apiKey);
       setModelId(initialSettings.modelId);
+      setFontSize(initialSettings.fontSize || 'medium');
       setShowClearConfirm(false);
     }
   }, [isOpen, initialSettings]);
@@ -39,7 +42,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ apiKey, modelId });
+    onSave({ apiKey, modelId, fontSize });
     onClose();
   };
 
@@ -98,6 +101,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ))}
               </select>
             </div>
+
+            {/* Accessibility Section: Font Size */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <Type size={16} className="text-purple-500" />
+                Font Size
+              </label>
+              <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                  {(['small', 'medium', 'large'] as const).map((size) => (
+                      <button
+                          key={size}
+                          type="button"
+                          onClick={() => setFontSize(size)}
+                          className={`flex-1 py-1.5 px-3 text-xs font-medium rounded transition-all capitalize ${
+                              fontSize === size 
+                                  ? 'bg-white text-purple-700 shadow-sm ring-1 ring-gray-200' 
+                                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                          }`}
+                      >
+                          {size}
+                      </button>
+                  ))}
+              </div>
+            </div>
+
           </form>
 
           {/* Danger Zone */}
