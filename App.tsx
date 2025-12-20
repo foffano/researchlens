@@ -140,7 +140,7 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('researchlens_settings');
     return saved ? JSON.parse(saved) : { 
       apiKey: import.meta.env.VITE_GEMINI_API_KEY || '', // Fallback to env if available 
-      modelId: 'gemini-2.5-flash' 
+      modelId: 'gemini-3-flash-preview' 
     };
   });
 
