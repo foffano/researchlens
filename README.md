@@ -1,9 +1,9 @@
-# ResearchLens AI: Automated Scientific Literature Analysis System
+# ResearchLens: Automated Scientific Literature Analysis System
 
-![ResearchLens AI](tela.png)
+![ResearchLens](tela.png)
 
 ## Abstract
-ResearchLens AI is a desktop application designed to address the critical challenge of information overload in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first, privacy-preserving environment for researchers to process literature at scale, ensuring high fidelity in bibliographic metadata extraction and semantic analysis without relying on traditional, error-prone OCR pipelines.
+ResearchLens is a desktop application designed to address the critical challenge of information overload in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first, privacy-preserving environment for researchers to process literature at scale, ensuring high fidelity in bibliographic metadata extraction and semantic analysis without relying on traditional, error-prone OCR pipelines.
 
 ---
 
