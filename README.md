@@ -11,7 +11,7 @@ ResearchLens is a desktop application designed to address the critical challenge
 
 In the modern scientific landscape, researchers are inundated with an ever-growing volume of literature. Traditional methods of manual review are time-consuming and prone to human error. Existing automated tools often rely on brittle text extraction methods that fail to capture the nuance of complex document layouts, tables, and non-linear text.
 
-**ResearchLens AI** was developed to:
+**ResearchLens** was developed to:
 1.  **Accelerate Literature Review**: Drastically reduce the time required to screen and analyze papers.
 2.  **Enhance Data Accuracy**: Utilize multimodal AI to "see" documents as humans do, preserving context often lost in plain-text conversion.
 3.  **Facilitate Structured Synthesis**: Convert unstructured PDF content into structured, exportable data (JSON/CSV) suitable for bibliometric analysis and systematic reviews.
