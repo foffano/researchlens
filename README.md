@@ -1,5 +1,7 @@
 # ResearchLens: Automated Scientific Literature Analysis System
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18002843.svg)](https://doi.org/10.5281/zenodo.18002843)
+
 ![ResearchLens](tela.png)
 
 ## Abstract
