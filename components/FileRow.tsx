@@ -192,7 +192,8 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
             const modelUsed = file.analysis?._models?.[col.id];
             const responses = file.analysis?._responses?.[col.id] || {};
             const isMenuOpen = activeMenuCol === col.id;
-            const isAnalyzingColumn = file.status === 'analyzing' && !content;
+            // Check if THIS specific column is currently being analyzed
+            const isAnalyzingColumn = file.analyzingColumns?.includes(col.id);
 
             return (
                 <div key={col.id} className={`flex-none w-[350px] h-[150px] border-r border-gray-100 relative group/cell ${

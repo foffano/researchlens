@@ -32,6 +32,7 @@ export interface FileEntry {
   name: string;
   uploadDate: string;
   status: 'uploading' | 'analyzing' | 'completed' | 'error';
+  analyzingColumns?: string[]; // List of column IDs currently being analyzed
   analysis?: AnalysisResult;
   file?: File; // Browser runtime only (not persistent)
   base64?: string; // Persistent storage of file content

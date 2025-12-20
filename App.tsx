@@ -437,8 +437,22 @@ const App: React.FC = () => {
                   delete newAnalysis![c.id];
               });
           }
+          
+          // Track which columns are being analyzed
+          const currentAnalyzing = f.analyzingColumns || [];
+          const newAnalyzing = [...currentAnalyzing];
+          columnsToAnalyze.forEach(c => {
+              if (!newAnalyzing.includes(c.id)) {
+                  newAnalyzing.push(c.id);
+              }
+          });
 
-          return { ...f, status: 'analyzing', analysis: newAnalysis };
+          return { 
+              ...f, 
+              status: 'analyzing', 
+              analyzingColumns: newAnalyzing,
+              analysis: newAnalysis 
+          };
       }));
       
       const modelToUse = overrideModelId || settings.modelId;
@@ -492,15 +506,32 @@ const App: React.FC = () => {
                   });
               }
 
+              // Remove processed columns from analyzing list
+              const remainingAnalyzing = (f.analyzingColumns || []).filter(
+                  colId => !columnsToAnalyze.find(c => c.id === colId)
+              );
+
               return { 
                   ...f, 
-                  status: 'completed', 
+                  status: remainingAnalyzing.length > 0 ? 'analyzing' : 'completed', 
+                  analyzingColumns: remainingAnalyzing,
                   analysis: finalAnalysis 
               };
           }));
       } catch (error) {
           console.error(`Error analyzing file ${fileEntry.id}:`, error);
-          setFiles(prev => prev.map(f => f.id === fileEntry.id ? { ...f, status: 'error' } : f));
+          setFiles(prev => prev.map(f => {
+              if (f.id !== fileEntry.id) return f;
+              // Remove processed columns on error too
+              const remainingAnalyzing = (f.analyzingColumns || []).filter(
+                  colId => !columnsToAnalyze.find(c => c.id === colId)
+              );
+              return { 
+                  ...f, 
+                  status: remainingAnalyzing.length > 0 ? 'analyzing' : 'error',
+                  analyzingColumns: remainingAnalyzing
+              };
+          }));
       }
   };
 
