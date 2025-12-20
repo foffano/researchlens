@@ -96,18 +96,18 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, onTo
       style={style} 
       {...attributes} 
       {...listeners}
-      className="flex-none w-[350px] p-3 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between bg-gray-50 select-none group/header"
+      className="flex-none w-[350px] p-3 border-r border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center justify-between bg-gray-50 dark:bg-gray-800 select-none group/header"
     >
       <div className="flex items-center gap-2 min-w-0 relative">
         <span className="truncate">{label}</span>
         {prompt && (
           <div className="group/tooltip relative shrink-0" onPointerDown={(e) => e.stopPropagation()}>
-            <Info size={14} className="text-gray-400 hover:text-blue-600 cursor-help" />
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-3 bg-gray-900 text-white text-[11px] leading-relaxed font-medium rounded-md shadow-2xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-[100] pointer-events-none text-left whitespace-normal border border-gray-700">
+            <Info size={14} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-help" />
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-64 p-3 bg-gray-900 dark:bg-gray-800 text-white text-[11px] leading-relaxed font-medium rounded-md shadow-2xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-[100] pointer-events-none text-left whitespace-normal border border-gray-700 dark:border-gray-600">
               <span className="text-gray-400 text-[10px] uppercase tracking-wider font-bold block mb-1">Instruction</span>
               {prompt}
               {/* Arrow */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900"></div>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-gray-900 dark:border-b-gray-800"></div>
             </div>
           </div>
         )}
@@ -138,12 +138,39 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(() => {
     // Initialize from localStorage
     const saved = localStorage.getItem('researchlens_settings');
-    return saved ? JSON.parse(saved) : { 
-      apiKey: import.meta.env.VITE_GEMINI_API_KEY || '', // Fallback to env if available 
+    const defaults: AppSettings = { 
+      apiKey: import.meta.env.VITE_GEMINI_API_KEY || '', 
       modelId: 'gemini-3-flash-preview',
-      fontSize: 'medium'
+      fontSize: 'medium',
+      theme: 'system'
     };
+    return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
   });
+
+  // --- Theme Effect ---
+  useEffect(() => {
+    const applyTheme = () => {
+      const root = window.document.documentElement;
+      const isDark = settings.theme === 'dark' || 
+        (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      
+      if (isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+
+    // Listen for system changes if theme is system
+    if (settings.theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => applyTheme();
+      mediaQuery.addEventListener('change', handler);
+      return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, [settings.theme]);
 
   // --- State: Filters ---
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
@@ -777,7 +804,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-white overflow-hidden">
+    <div className="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
       <Sidebar 
         folders={folders}
         selectedFolderId={selectedFolderId}
@@ -798,22 +825,22 @@ const App: React.FC = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900">
         
         {/* Top Header */}
-        <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0 relative z-20">
+        <div className="h-16 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 bg-white dark:bg-gray-900 shrink-0 relative z-20">
             <div className="flex items-center gap-3">
                 {!isLeftSidebarOpen && (
                   <button 
                     onClick={() => setIsLeftSidebarOpen(true)} 
-                    className="p-2 -ml-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    className="p-2 -ml-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                   >
                     <Menu size={20} />
                   </button>
                 )}
-                <h1 className="text-lg font-semibold text-gray-800">{getPageTitle()}</h1>
+                <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{getPageTitle()}</h1>
                 {selectedFolderId && (
-                    <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded">
+                    <span className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">
                         Folder
                     </span>
                 )}
@@ -828,7 +855,7 @@ const App: React.FC = () => {
                     placeholder="Search files..." 
                     value={filters.searchQuery}
                     onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-                    className="pl-9 pr-4 py-2 w-64 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                    className="pl-9 pr-4 py-2 w-64 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all dark:placeholder-gray-500"
                   />
                 </div>
 
@@ -838,14 +865,14 @@ const App: React.FC = () => {
                     onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
                     className={`p-2 rounded-lg border transition-colors relative ${
                       isFilterMenuOpen || filters.articleTypes.length > 0 || filters.dateRange.start 
-                        ? 'bg-orange-50 border-orange-200 text-orange-600' 
-                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                        ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400' 
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Filter size={20} />
                     {/* Active Filter Indicator Dot */}
                     {(filters.articleTypes.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white"></span>
+                      <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white dark:border-gray-800"></span>
                     )}
                   </button>
 
@@ -857,11 +884,11 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                <div className="h-6 w-px bg-gray-200 mx-2"></div>
+                <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
 
                 <button 
                     onClick={handleExportCSV}
-                    className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+                    className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
                     title="Export current view to CSV"
                 >
                     <Download size={16} />
@@ -886,7 +913,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Table/Grid Area */}
-        <div className="flex-1 overflow-auto bg-white relative">
+        <div className="flex-1 overflow-auto bg-white dark:bg-gray-900 relative">
              <div className="min-w-max">
                 {/* Table Header */}
                 <DndContext 
@@ -894,8 +921,8 @@ const App: React.FC = () => {
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEnd}
                 >
-                  <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-30">
-                      <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-30">
+                      <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center justify-between sticky left-0 bg-gray-50 dark:bg-gray-800 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-gray-900/50">
                           Files ({filteredFiles.length})
                       </div>
                       
@@ -918,7 +945,7 @@ const App: React.FC = () => {
                       <div className="flex-none w-[100px] p-3 flex items-center justify-center">
                           <button 
                             onClick={() => setIsRightSidebarOpen(true)}
-                            className="p-1 rounded hover:bg-gray-200 text-gray-400"
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400"
                           >
                             <Plus size={16}/>
                           </button>
@@ -927,15 +954,15 @@ const App: React.FC = () => {
                 </DndContext>
 
                 {/* Table Body */}
-                <div className="bg-white">
+                <div className="bg-white dark:bg-gray-900">
                     {filteredFiles.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-96 text-gray-400">
-                            <Upload size={48} className="mb-4 text-gray-200" />
-                            <p className="text-lg font-medium text-gray-500">No files in {selectedFolderId ? 'this folder' : 'library'}</p>
-                            <p className="text-sm mb-6">Upload a research PDF to start analyzing.</p>
+                            <Upload size={48} className="mb-4 text-gray-200 dark:text-gray-700" />
+                            <p className="text-lg font-medium text-gray-500 dark:text-gray-400">No files in {selectedFolderId ? 'this folder' : 'library'}</p>
+                            <p className="text-sm mb-6 text-gray-400 dark:text-gray-500">Upload a research PDF to start analyzing.</p>
                             <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                className="text-orange-600 hover:text-orange-700 font-medium"
+                                className="text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium"
                             >
                                 Browse files
                             </button>

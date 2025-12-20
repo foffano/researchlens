@@ -42,7 +42,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
 
   return (
     <div className={`
-      relative border-l border-gray-200 bg-white h-screen flex flex-col transition-all duration-300 ease-in-out z-30
+      relative border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-screen flex flex-col transition-all duration-300 ease-in-out z-30
       ${isOpen ? 'w-80 translate-x-0' : 'w-0 translate-x-0 border-l-0'} 
     `}>
        {/* Toggle Button visible even when closed */}
@@ -50,8 +50,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
           onClick={onToggle}
           className={`
             absolute top-20 -left-8
-            w-8 h-10 bg-white border border-gray-200 border-r-0 rounded-l-md 
-            flex items-center justify-center cursor-pointer hover:bg-gray-50 text-gray-500
+            w-8 h-10 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-r-0 rounded-l-md 
+            flex items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400
             shadow-sm z-50
             transition-transform duration-300
           `}
@@ -62,16 +62,16 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
 
       {/* Content Container - Fixed width to prevent squashing during transition */}
       <div className={`flex flex-col h-full w-80 overflow-hidden ${!isOpen && 'opacity-0 invisible transition-opacity duration-200'}`}>
-          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-             <span className="font-semibold text-gray-700">Analysis Columns</span>
-             <button onClick={onToggle} className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100">
+          <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+             <span className="font-semibold text-gray-700 dark:text-gray-200">Analysis Columns</span>
+             <button onClick={onToggle} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
                 <X size={18} />
              </button>
           </div>
 
           <div className="p-4 overflow-y-auto flex-1">
             {/* Standard Suggestions */}
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Suggested</h3>
+            <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Suggested</h3>
             <div className="space-y-2 mb-8">
               {SUGGESTIONS.map((col) => {
                 const isActive = activeColumns.find(c => c.id === col.key && c.visible);
@@ -82,8 +82,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                     disabled={!!isActive}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                       isActive 
-                        ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
-                        : 'text-gray-700 hover:bg-orange-50 hover:text-orange-700 border border-transparent hover:border-orange-100'
+                        ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed bg-gray-50 dark:bg-gray-800' 
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-400 border border-transparent hover:border-orange-100 dark:hover:border-orange-800'
                     }`}
                   >
                     <Plus size={14} />
@@ -96,7 +96,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
             {/* Saved Custom Columns */}
             {savedCustomColumns.length > 0 && (
               <div className="mb-8">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">My Columns</h3>
+                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">My Columns</h3>
                 <div className="space-y-2">
                   {savedCustomColumns.map((col) => {
                     const isActive = activeColumns.find(c => c.id === col.id && c.visible);
@@ -113,8 +113,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                           disabled={!!isActive}
                           className={`grow flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
                             isActive 
-                              ? 'text-gray-400 cursor-not-allowed bg-gray-50' 
-                              : 'text-purple-700 hover:bg-purple-50 hover:text-purple-800 border border-transparent hover:border-purple-100'
+                              ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed bg-gray-50 dark:bg-gray-800' 
+                              : 'text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-800 dark:hover:text-purple-300 border border-transparent hover:border-purple-100 dark:hover:border-purple-800'
                           }`}
                         >
                           <Plus size={14} />
@@ -126,7 +126,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                                 e.stopPropagation();
                                 onDeleteCustomColumn(col.id);
                             }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
                             title="Delete saved column"
                         >
                             <Trash2 size={14} />
@@ -140,53 +140,53 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
         )}
 
         {/* Custom Column Builder */}
-        <div className="border-t border-gray-100 pt-6">
+        <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Custom Column</h3>
+              <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Custom Column</h3>
            </div>
 
            {!isCustomMode ? (
               <button 
                 onClick={() => setIsCustomMode(true)}
-                className="w-full py-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-orange-300 dark:hover:border-orange-700 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all flex items-center justify-center gap-2"
               >
                 <Sparkles size={16} />
                 Create New Column
               </button>
            ) : (
-             <form onSubmit={handleAddCustom} className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
+             <form onSubmit={handleAddCustom} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Column Name</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Column Name</label>
                   <input 
                     type="text" 
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     placeholder="e.g. Funding Source"
-                    className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Instruction (Prompt)</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Instruction (Prompt)</label>
                   <textarea 
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     placeholder="Extract the funding agencies mentioned..."
-                    className="w-full text-sm px-2 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 min-h-[80px]"
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 min-h-[80px] dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button 
                     type="button" 
                     onClick={() => setIsCustomMode(false)}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                    className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
                     disabled={!customName || !customPrompt}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-orange-600 rounded hover:bg-orange-700 disabled:opacity-50"
+                    className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded disabled:opacity-50"
                   >
                     Add Column
                   </button>

@@ -85,13 +85,13 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
   const canViewPdf = !!(file.file || file.base64);
 
   return (
-    <div className="group border-b border-gray-100 hover:bg-gray-50 transition-colors">
+    <div className="group border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
       <div className="flex">
         {/* File Info Column */}
-        <div className={`flex-none w-[400px] p-4 border-r border-gray-100 flex flex-col gap-2 relative group/info sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
+        <div className={`flex-none w-[400px] p-4 border-r border-gray-100 dark:border-gray-700 flex flex-col gap-2 relative group/info sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-black/50 ${
             (file.status === 'analyzing' && !file.analysis?.metadata)
-                ? 'bg-orange-50 animate-pulse ring-1 ring-inset ring-orange-200'
-                : 'bg-white group-hover:bg-gray-50'
+                ? 'bg-orange-50 dark:bg-orange-900/20 animate-pulse ring-1 ring-inset ring-orange-200 dark:ring-orange-800'
+                : 'bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800'
         }`}>
           {/* Delete Button - Absolute positioned, visible on hover */}
           <button 
@@ -99,7 +99,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                   e.stopPropagation();
                   onDelete(file.id);
               }}
-              className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover/info:opacity-100 transition-all z-10"
+              className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover/info:opacity-100 transition-all z-10"
               title="Delete file"
           >
               <Trash2 size={14} />
@@ -107,12 +107,12 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
 
           <div className="flex items-start gap-3">
              <div className="mt-1 flex-shrink-0">
-                <div className="w-8 h-8 rounded bg-orange-50 flex items-center justify-center text-orange-600">
+                <div className="w-8 h-8 rounded bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 dark:text-orange-400">
                     <FileText size={18} />
                 </div>
              </div>
              <div className="flex-1 min-w-0">
-                <h4 className={`${titleSizeClass} font-semibold text-gray-900 leading-snug pr-2`}>
+                <h4 className={`${titleSizeClass} font-semibold text-gray-900 dark:text-gray-100 leading-snug pr-2`}>
                     {displayTitle}
                 </h4>
                 
@@ -121,19 +121,19 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                          {/* Badges Row */}
                          <div className="flex flex-wrap items-center gap-2">
                              {displayType && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
                                     {displayType}
                                 </span>
                              )}
                              {displayYear && displayYear !== 'n/d' && (
-                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
                                     {displayYear}
                                  </span>
                              )}
                          </div>
 
                          {displayAuthors && (
-                            <p className="text-xs text-gray-500 truncate mt-0.5" title={displayAuthors}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" title={displayAuthors}>
                                 {displayAuthors}
                             </p>
                          )}
@@ -144,7 +144,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                    href={displayDoi.startsWith('http') ? displayDoi : `https://doi.org/${displayDoi}`} 
                                    target="_blank" 
                                    rel="noopener noreferrer"
-                                   className="text-[11px] text-gray-400 hover:text-orange-600 hover:underline flex items-center gap-1 truncate transition-colors max-w-[120px]"
+                                   className="text-[11px] text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline flex items-center gap-1 truncate transition-colors max-w-[120px]"
                                    onClick={(e) => e.stopPropagation()}
                                    title={displayDoi}
                                  >
@@ -156,7 +156,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                              {canViewPdf && (
                                  <button 
                                      onClick={handleOpenPdf}
-                                     className="text-[11px] text-gray-400 hover:text-orange-600 hover:underline flex items-center gap-1 transition-colors"
+                                     className="text-[11px] text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline flex items-center gap-1 transition-colors"
                                  >
                                      <Eye size={10} />
                                      View PDF
@@ -165,11 +165,11 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
 
                              {/* Folder Selector */}
                              <div className="relative inline-flex items-center group/folder">
-                                <FolderIcon size={10} className="text-gray-400 absolute left-0" />
+                                <FolderIcon size={10} className="text-gray-400 dark:text-gray-500 absolute left-0" />
                                 <select 
                                     value={file.folderId || "root"}
                                     onChange={handleFolderChange}
-                                    className="text-[11px] text-gray-400 hover:text-gray-600 bg-transparent border-none py-0 pl-4 pr-0 focus:ring-0 cursor-pointer appearance-none w-[80px] truncate"
+                                    className="text-[11px] text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 bg-transparent border-none py-0 pl-4 pr-0 focus:ring-0 cursor-pointer appearance-none w-[80px] truncate dark:bg-gray-900"
                                 >
                                     <option value="root">No Folder</option>
                                     {folders.map(f => (
@@ -181,14 +181,14 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                     </div>
                 ) : (
                     <div className="mt-1">
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {file.status === 'uploading' && 'Uploading...'}
-                        {file.status === 'error' && <span className="text-red-500">Analysis Failed</span>}
+                        {file.status === 'error' && <span className="text-red-500 dark:text-red-400">Analysis Failed</span>}
                         </p>
                         {canViewPdf && (
                             <button 
                                 onClick={handleOpenPdf}
-                                className="mt-1 text-[11px] text-gray-400 hover:text-orange-600 hover:underline flex items-center gap-1 transition-colors"
+                                className="mt-1 text-[11px] text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline flex items-center gap-1 transition-colors"
                             >
                                 <Eye size={10} />
                                 View PDF
@@ -210,16 +210,16 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
             const isAnalyzingColumn = file.analyzingColumns?.includes(col.id);
 
             return (
-                <div key={col.id} className={`flex-none w-[350px] min-h-[150px] border-r border-gray-100 relative group/cell ${
+                <div key={col.id} className={`flex-none w-[350px] min-h-[150px] border-r border-gray-100 dark:border-gray-700 relative group/cell ${
                     isAnalyzingColumn
-                        ? 'bg-orange-50 animate-pulse ring-1 ring-inset ring-orange-200'
-                        : 'bg-white'
+                        ? 'bg-orange-50 dark:bg-orange-900/20 animate-pulse ring-1 ring-inset ring-orange-200 dark:ring-orange-800'
+                        : 'bg-white dark:bg-gray-900'
                 }`}>
-                    <div className={`p-4 ${textSizeClass} text-gray-600 leading-relaxed break-words`}>
+                    <div className={`p-4 ${textSizeClass} text-gray-600 dark:text-gray-300 leading-relaxed break-words`}>
                         {isAnalyzingColumn ? (
                             <div className="space-y-2 opacity-50">
-                                <div className="h-2 bg-orange-200 rounded w-3/4"></div>
-                                <div className="h-2 bg-orange-200 rounded w-1/2"></div>
+                                <div className="h-2 bg-orange-200 dark:bg-orange-800 rounded w-3/4"></div>
+                                <div className="h-2 bg-orange-200 dark:bg-orange-800 rounded w-1/2"></div>
                             </div>
                         ) : (
                             content ? (
@@ -237,7 +237,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                    <div className="flex h-full items-center justify-center min-h-[118px]">
                                        <button 
                                            onClick={() => onAnalyzeColumn(file.id, col.id, col.prompt!)}
-                                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded transition-colors shadow-sm"
+                                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200 dark:border-orange-800 rounded transition-colors shadow-sm"
                                            title="Analyze this specific column"
                                        >
                                            <Play size={10} className="fill-current" />
@@ -245,7 +245,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                        </button>
                                    </div>
                                ) : (
-                                   <span className="text-gray-300 text-xs italic">
+                                   <span className="text-gray-300 dark:text-gray-600 text-xs italic">
                                        (No prompt)
                                    </span>
                                )
@@ -263,8 +263,8 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                 }}
                                 className={`
                                     flex items-center gap-1.5 text-[9px] font-mono 
-                                    bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded border shadow-sm transition-all cursor-pointer select-none
-                                    ${isMenuOpen ? 'opacity-100 border-orange-300 text-orange-600 ring-2 ring-orange-100' : 'text-gray-500 border-gray-200 opacity-0 group-hover/cell:opacity-100'}
+                                    bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-1.5 py-0.5 rounded border shadow-sm transition-all cursor-pointer select-none
+                                    ${isMenuOpen ? 'opacity-100 border-orange-300 dark:border-orange-500 text-orange-600 dark:text-orange-400 ring-2 ring-orange-100 dark:ring-orange-900' : 'text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-600 opacity-0 group-hover/cell:opacity-100'}
                                 `}
                                 title="Switch model response"
                             >
@@ -276,12 +276,12 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                             {isMenuOpen && (
                                 <div 
                                     ref={menuRef}
-                                    className="absolute bottom-full right-0 mb-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
+                                    className="absolute bottom-full right-0 mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
                                 >
-                                    <div className="bg-gray-50 px-3 py-2 border-b border-gray-100">
-                                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Select Model</p>
+                                    <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2 border-b border-gray-100 dark:border-gray-600">
+                                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Select Model</p>
                                     </div>
-                                    <div className="py-1 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+                                    <div className="py-1 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-600">
                                         {AVAILABLE_MODELS_CONFIG.map(model => {
                                             const isCached = !!responses[model.id];
                                             const isActive = modelUsed === model.id;
@@ -295,13 +295,13 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                                     }}
                                                     className={`
                                                         w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between group/item
-                                                        ${isActive ? 'bg-orange-50 text-orange-700' : 'text-gray-700 hover:bg-gray-50'}
+                                                        ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'}
                                                     `}
                                                 >
                                                     <span>{model.label}</span>
                                                     
                                                     {isActive ? (
-                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">Active</span>
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium">Active</span>
                                                     ) : isCached ? (
                                                         <span className="flex items-center gap-1 text-[9px] text-gray-400" title="Cached response">
                                                             <Check size={10} /> Saved

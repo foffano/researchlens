@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div 
       className={`
-        border-r border-gray-200 bg-white h-screen flex flex-col transition-all duration-300 ease-in-out relative
+        border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 h-screen flex flex-col transition-all duration-300 ease-in-out relative
         ${isOpen ? 'w-64' : 'w-0 border-r-0'}
         hidden md:flex
       `}
@@ -54,14 +54,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className={`w-64 flex flex-col h-full ${!isOpen && 'invisible'}`}>
         
         {/* Header */}
-        <div className="p-4 flex items-center justify-between border-b border-gray-100">
+        <div className="p-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <img src="logo.png" alt="ResearchLens Logo" className="w-8 h-8 rounded-lg object-contain" />
-            <span className="font-semibold text-gray-800">Research<span className="text-orange-500">Lens</span></span>
+            <span className="font-semibold text-gray-800 dark:text-gray-100">Research<span className="text-orange-500">Lens</span></span>
           </div>
           <button 
             onClick={onToggle}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
             title="Collapse Sidebar"
           >
             <PanelLeftClose size={18} />
@@ -76,8 +76,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onSelectFolder(null)}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                   selectedFolderId === null 
-                    ? 'text-gray-900 bg-gray-100' 
-                    : 'text-gray-600 hover:bg-gray-50'
+                    ? 'text-gray-900 bg-gray-100 dark:bg-gray-800 dark:text-white' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <FileText size={18} />
@@ -87,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <div className="mt-8">
               <div className="flex items-center justify-between px-3 mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wider">
                   Folders
                 </span>
                 <button 
@@ -101,13 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               <nav className="space-y-1">
                 {folders.map(folder => (
-                  <div key={folder.id} className="group flex items-center gap-1 pr-2 rounded-md transition-colors hover:bg-gray-50">
+                  <div key={folder.id} className="group flex items-center gap-1 pr-2 rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-gray-800">
                     <button
                       onClick={() => onSelectFolder(folder.id)}
                       className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md truncate ${
                         selectedFolderId === folder.id
-                          ? 'text-orange-700 bg-orange-50' 
-                          : 'text-gray-600'
+                          ? 'text-orange-700 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400' 
+                          : 'text-gray-600 dark:text-gray-400'
                       }`}
                     >
                       {selectedFolderId === folder.id ? <FolderOpen size={16} /> : <FolderIcon size={16} />}
@@ -119,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         e.stopPropagation();
                         onDeleteFolder(folder.id);
                       }}
-                      className="hidden group-hover:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                      className="hidden group-hover:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
                       title="Delete Folder"
                     >
                       <Trash2 size={13} />
@@ -137,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onChange={(e) => setNewFolderName(e.target.value)}
                     onBlur={() => { if(!newFolderName) setIsCreating(false); }}
                     placeholder="Folder name..."
-                    className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 dark:bg-gray-800 dark:text-white dark:border-orange-500/50"
                   />
                 </form>
               )}
@@ -151,10 +151,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Settings Button (Bottom) */}
-          <div className="px-4 mt-4 border-t border-gray-100 pt-4">
+          <div className="px-4 mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
             <button 
               onClick={onOpenSettings}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md transition-colors"
             >
               <Settings size={18} />
               Settings
@@ -163,8 +163,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         
         {/* Disclaimer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <p className="text-[10px] text-gray-400 text-center leading-tight">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center leading-tight">
             AI-generated content can be inaccurate. Please verify important information.
           </p>
         </div>
