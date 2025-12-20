@@ -1,5 +1,5 @@
 {
-  "name": "ResearchLens AI",
+  "name": "ResearchLens",
   "description": "A research paper analysis tool using Gemini 3 to extract insights, results, and statements from PDF documents.",
   "requestFramePermissions": []
 }

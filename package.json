@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron . --dev\"",
     "electron:build": "npm run build && electron-builder",
-    "pack": "npm run build && electron-packager . \"ResearchLens AI\" --platform=win32 --arch=x64 --out=release-packager --overwrite"
+    "pack": "npm run build && electron-packager . \"ResearchLens\" --platform=win32 --arch=x64 --out=release-packager --overwrite"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -35,7 +35,7 @@
   },
   "build": {
     "appId": "com.researchlens.ai",
-    "productName": "ResearchLens AI",
+    "productName": "ResearchLens",
     "directories": {
       "output": "release"
     },

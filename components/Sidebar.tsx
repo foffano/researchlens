@@ -57,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 flex items-center justify-between border-b border-gray-100">
           <div className="flex items-center gap-2">
             <img src="logo.png" alt="ResearchLens Logo" className="w-8 h-8 rounded-lg object-contain" />
-            <span className="font-semibold text-gray-800">ResearchLens</span>
+            <span className="font-semibold text-gray-800">Research<span className="text-orange-500">Lens</span></span>
           </div>
           <button 
             onClick={onToggle}
