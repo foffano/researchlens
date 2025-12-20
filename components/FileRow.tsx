@@ -196,12 +196,12 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
             const isAnalyzingColumn = file.analyzingColumns?.includes(col.id);
 
             return (
-                <div key={col.id} className={`flex-none w-[350px] h-[150px] border-r border-gray-100 relative group/cell ${
+                <div key={col.id} className={`flex-none w-[350px] min-h-[150px] border-r border-gray-100 relative group/cell ${
                     isAnalyzingColumn
                         ? 'bg-orange-50 animate-pulse ring-1 ring-inset ring-orange-200'
                         : 'bg-white'
                 }`}>
-                    <div className="absolute inset-0 p-4 overflow-y-auto text-sm text-gray-600 leading-relaxed scrollbar-thin scrollbar-thumb-gray-200">
+                    <div className="p-4 text-sm text-gray-600 leading-relaxed break-words">
                         {isAnalyzingColumn ? (
                             <div className="space-y-2 opacity-50">
                                 <div className="h-2 bg-orange-200 rounded w-3/4"></div>
@@ -211,16 +211,16 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                             content ? (
                                 <>
                                     {Array.isArray(content) ? (
-                                        <ul className="list-disc pl-4 space-y-1 mb-2">
+                                        <ul className="list-disc pl-4 space-y-1 mb-8">
                                             {content.map((item: string, idx: number) => <li key={idx}>{item}</li>)}
                                         </ul>
                                     ) : (
-                                        <p className="mb-2">{content}</p>
+                                        <p className="mb-8">{content}</p>
                                     )}
                                 </>
                             ) : (
                                 col.prompt ? (
-                                   <div className="h-full flex items-center justify-center">
+                                   <div className="flex h-full items-center justify-center min-h-[118px]">
                                        <button 
                                            onClick={() => onAnalyzeColumn(file.id, col.id, col.prompt!)}
                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded transition-colors shadow-sm"
