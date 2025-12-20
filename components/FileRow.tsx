@@ -281,7 +281,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                     <div className="bg-gray-50 dark:bg-gray-700 px-3 py-2 border-b border-gray-100 dark:border-gray-600">
                                         <p className="text-[10px] font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Select Model</p>
                                     </div>
-                                    <div className="py-1 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-600">
+                                    <div className="py-1 max-h-40 overflow-y-auto">
                                         {AVAILABLE_MODELS_CONFIG.map(model => {
                                             const isCached = !!responses[model.id];
                                             const isActive = modelUsed === model.id;

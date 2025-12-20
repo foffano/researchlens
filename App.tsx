@@ -156,8 +156,10 @@ const App: React.FC = () => {
       
       if (isDark) {
         root.classList.add('dark');
+        root.style.colorScheme = 'dark';
       } else {
         root.classList.remove('dark');
+        root.style.colorScheme = 'light';
       }
     };
 
