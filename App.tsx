@@ -204,6 +204,9 @@ const App: React.FC = () => {
   // Store user-defined custom columns for reuse
   const [savedCustomColumns, setSavedCustomColumns] = useState<{id: string, label: string, prompt: string}[]>([]);
 
+  // --- Deletion State ---
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'file' | 'column', id: string } | null>(null);
+
   // --- Persistence Logic ---
   // 1. Load Data on Mount
   useEffect(() => {
@@ -348,26 +351,24 @@ const App: React.FC = () => {
   };
 
   const handleDeleteFolder = (folderId: string) => {
-    if (confirm("Are you sure you want to delete this folder? Files inside will be moved to 'All Files'.")) {
-      // 1. Move files out of folder
-      setFiles(prev => prev.map(f => 
-        f.folderId === folderId ? { ...f, folderId: undefined } : f
-      ));
+    // 1. Move files out of folder
+    setFiles(prev => prev.map(f => 
+      f.folderId === folderId ? { ...f, folderId: undefined } : f
+    ));
 
-      // 2. Remove folder
-      setFolders(prev => prev.filter(f => f.id !== folderId));
+    // 2. Remove folder
+    setFolders(prev => prev.filter(f => f.id !== folderId));
 
-      // 3. Cleanup configs
-      setColumnConfigs(prev => {
-        const newConfigs = { ...prev };
-        delete newConfigs[folderId];
-        return newConfigs;
-      });
+    // 3. Cleanup configs
+    setColumnConfigs(prev => {
+      const newConfigs = { ...prev };
+      delete newConfigs[folderId];
+      return newConfigs;
+    });
 
-      // 4. Reset selection if needed
-      if (selectedFolderId === folderId) {
-        setSelectedFolderId(null);
-      }
+    // 4. Reset selection if needed
+    if (selectedFolderId === folderId) {
+      setSelectedFolderId(null);
     }
   };
 
@@ -378,9 +379,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteFile = (fileId: string) => {
-    if (confirm('Are you sure you want to delete this file?')) {
-      setFiles(prev => prev.filter(f => f.id !== fileId));
-    }
+    setItemToDelete({ type: 'file', id: fileId });
   };
 
   const filteredFiles = files.filter(f => {
@@ -680,9 +679,7 @@ const App: React.FC = () => {
 
   const handleDeleteCustomColumn = (colId: string) => {
       // Optional: Confirm before delete
-      if (window.confirm("Are you sure you want to remove this column from your saved list?")) {
-        setSavedCustomColumns(prev => prev.filter(c => c.id !== colId));
-      }
+      setItemToDelete({ type: 'column', id: colId });
   };
 
   const handleAnalyzeColumn = (fileId: string, colId: string, prompt: string, modelId?: string) => {
@@ -801,6 +798,17 @@ const App: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const confirmDelete = () => {
+    if (!itemToDelete) return;
+
+    if (itemToDelete.type === 'file') {
+      setFiles(prev => prev.filter(f => f.id !== itemToDelete.id));
+    } else if (itemToDelete.type === 'column') {
+      setSavedCustomColumns(prev => prev.filter(c => c.id !== itemToDelete.id));
+    }
+    setItemToDelete(null);
   };
 
   return (
@@ -994,6 +1002,36 @@ const App: React.FC = () => {
         isOpen={isRightSidebarOpen}
         onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
       />
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-80 p-4 animate-in fade-in zoom-in duration-100">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+              {itemToDelete.type === 'file' ? 'Delete File?' : 'Remove Column?'}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {itemToDelete.type === 'file' 
+                ? "Are you sure you want to delete this file?" 
+                : "Remove this column from your saved list?"}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setItemToDelete(null)}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
+              >
+                {itemToDelete.type === 'file' ? 'Delete' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
