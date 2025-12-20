@@ -74,7 +74,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
     <div className="group border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <div className="flex">
         {/* File Info Column */}
-        <div className={`flex-none w-[400px] p-4 border-r border-gray-100 flex flex-col gap-2 relative group/info ${
+        <div className={`flex-none w-[400px] p-4 border-r border-gray-100 flex flex-col gap-2 relative group/info sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${
             (file.status === 'analyzing' && !file.analysis?.metadata)
                 ? 'bg-orange-50 animate-pulse ring-1 ring-inset ring-orange-200'
                 : 'bg-white group-hover:bg-gray-50'

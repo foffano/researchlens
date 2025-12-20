@@ -893,8 +893,8 @@ const App: React.FC = () => {
                   collisionDetection={closestCenter}
                   onDragEnd={handleDragEnd}
                 >
-                  <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-                      <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-30">
+                      <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center justify-between sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                           Files ({filteredFiles.length})
                       </div>
                       
