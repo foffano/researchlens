@@ -532,24 +532,11 @@ const App: React.FC = () => {
 
     setFiles(prev => [...newFiles, ...prev]);
 
-    // Gather active columns with their prompts
-    let activeColumnDefs: {id: string, prompt: string}[] = [];
-
-    if (selectedFolderId) {
-        // Normal behavior for folders: analyze visible columns
-        activeColumnDefs = activeColumns
-            .filter(c => c.visible && c.id !== 'fileInfo' && c.prompt)
-            .map(c => ({ id: c.id, prompt: c.prompt! }));
-    } else {
-        // Root behavior: analyze NOTHING extra (empty list), just metadata (handled by default in analyzePdf)
-        // Users must click "Analyze" manually for specific columns in All Files
-        activeColumnDefs = [];
-    }
-
-    // Process each new file
+    // Only trigger Metadata Analysis (empty columns list)
+    // Users must click "Analyze" manually for specific columns
     if (settings.apiKey) {
       for (const fileEntry of newFiles) {
-          processFileAnalysis(fileEntry, activeColumnDefs, false);
+          processFileAnalysis(fileEntry, [], false);
       }
     }
     
@@ -618,17 +605,7 @@ const App: React.FC = () => {
     }
 
     // 2. Identify existing completed files that are in the CURRENT view
-    const filesToUpdate = filteredFiles.filter(f => f.status === 'completed');
-
-    // 3. Trigger re-analysis ONLY for the new column if we have a prompt
-    if (colPrompt && settings.apiKey) {
-        const columnsToAnalyze = [{ id: key, prompt: colPrompt }];
-        filesToUpdate.forEach(fileEntry => {
-            processFileAnalysis(fileEntry, columnsToAnalyze, true);
-        });
-    } else if (!settings.apiKey) {
-      setShowSettings(true);
-    }
+    // REMOVED: Automatic analysis trigger. Users must now click "Analyze" manually.
   };
 
   const handleDeleteCustomColumn = (colId: string) => {
