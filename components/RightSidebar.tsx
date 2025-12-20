@@ -100,6 +100,12 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                 <div className="space-y-2">
                   {savedCustomColumns.map((col) => {
                     const isActive = activeColumns.find(c => c.id === col.id && c.visible);
+                    // Format label: replace underscores with spaces and ensure capitalization
+                    const displayLabel = col.label.replace(/_/g, ' ')
+                                                .split(' ')
+                                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                                .join(' ');
+                    
                     return (
                       <div key={col.id} className="group flex items-center gap-1">
                         <button
@@ -112,7 +118,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                           }`}
                         >
                           <Plus size={14} />
-                      {col.label}
+                      {displayLabel}
                     </button>
                     {onDeleteCustomColumn && (
                         <button 

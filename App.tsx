@@ -600,15 +600,21 @@ const App: React.FC = () => {
             // For suggested columns from sidebar that aren't in DEFAULT (if any), we need prompt lookup
             // But currently DEFAULT_COLUMNS covers all suggested ones. 
             // So this branch is primarily for BRAND NEW CUSTOM columns.
-            const label = customPrompt ? key.replace('custom_', '').replace(/_[0-9]+$/, '') : key; // Simple formatting
             
+            // Format label: Replace underscores with spaces and capitalize
+            const rawLabel = customPrompt ? key.replace('custom_', '').replace(/_[0-9]+$/, '') : key;
+            const formattedLabel = rawLabel.replace(/_/g, ' ')
+                                        .split(' ')
+                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                        .join(' ');
+
             // Try to find label from default if it's a known key but somehow missing
             const defaultMatch = DEFAULT_COLUMNS.find(d => d.id === key);
-            const finalLabel = defaultMatch ? defaultMatch.label : (customPrompt ? key.split('_')[1] || key : key); // rough label extract
+            const finalLabel = defaultMatch ? defaultMatch.label : formattedLabel;
 
             newColConfig = {
                 id: key,
-                label: finalLabel.charAt(0).toUpperCase() + finalLabel.slice(1),
+                label: finalLabel,
                 visible: true,
                 width: '350px',
                 prompt: customPrompt || defaultMatch?.prompt
@@ -626,10 +632,15 @@ const App: React.FC = () => {
        setSavedCustomColumns(prev => {
           if (prev.find(c => c.id === key)) return prev;
           // Format label same as above
-          const label = key.replace('custom_', '').replace(/_[0-9]+$/, ''); 
+          const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, ''); 
+          const formattedLabel = rawLabel.replace(/_/g, ' ')
+                                        .split(' ')
+                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                        .join(' ');
+          
           return [...prev, { 
              id: key, 
-             label: label.charAt(0).toUpperCase() + label.slice(1), 
+             label: formattedLabel, 
              prompt: customPrompt 
           }];
        });
