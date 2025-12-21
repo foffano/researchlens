@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Link as LinkIcon, ExternalLink, Eye, Folder as FolderIcon, ChevronDown, Play, Check, CloudLightning, Trash2 } from 'lucide-react';
+import { FileText, Link as LinkIcon, ExternalLink, Eye, Folder as FolderIcon, ChevronDown, Play, Check, CloudLightning, Trash2, RefreshCw } from 'lucide-react';
 import { FileEntry, ColumnConfig, Folder, AVAILABLE_MODELS_CONFIG } from '../types';
 
 interface FileRowProps {
@@ -9,6 +9,7 @@ interface FileRowProps {
   onMoveFile: (fileId: string, folderId: string | undefined) => void;
   onDelete: (fileId: string) => void;
   onAnalyzeColumn: (fileId: string, colId: string, prompt: string, modelId?: string) => void;
+  onRetry: (fileId: string) => void;
   fontSize: 'small' | 'medium' | 'large';
 }
 
@@ -17,7 +18,7 @@ const formatModelName = (modelId?: string) => {
     return modelId.replace('gemini-', '').replace('pro', 'Pro').replace('flash', 'Flash').replace('preview', '(Pre)');
 };
 
-export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMoveFile, onDelete, onAnalyzeColumn, fontSize = 'medium' }) => {
+export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMoveFile, onDelete, onAnalyzeColumn, onRetry, fontSize = 'medium' }) => {
   // Use extracted metadata if available, otherwise fallback to filename
   const displayTitle = file.analysis?.metadata?.title || file.name;
   const displayAuthors = file.analysis?.metadata?.authors?.join(", ");
@@ -40,6 +41,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
 
   // Menu State
   const [activeMenuCol, setActiveMenuCol] = useState<string | null>(null);
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -53,23 +55,40 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleOpenPdf = (e: React.MouseEvent) => {
+  const handleOpenPdf = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isLoadingPdf) return;
     
     let url = '';
     
     if (file.file) {
         url = URL.createObjectURL(file.file);
-    } else if (file.base64) {
-        // Convert Base64 back to Blob
-        const byteCharacters = atob(file.base64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
+    } else {
+        let b64 = file.base64;
+        
+        if (!b64 && window.electron?.getFileContent) {
+            setIsLoadingPdf(true);
+            try {
+                b64 = await window.electron.getFileContent(file.id);
+            } catch (err) {
+                console.error("Failed to load PDF content", err);
+                alert("Failed to load PDF file.");
+            } finally {
+                setIsLoadingPdf(false);
+            }
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/pdf' });
-        url = URL.createObjectURL(blob);
+
+        if (b64) {
+            // Convert Base64 back to Blob
+            const byteCharacters = atob(b64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/pdf' });
+            url = URL.createObjectURL(blob);
+        }
     }
 
     if (url) {
@@ -82,7 +101,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
       onMoveFile(file.id, val === "root" ? undefined : val);
   };
 
-  const canViewPdf = !!(file.file || file.base64);
+  const canViewPdf = true; // Always true as we can fetch on demand if persisted
 
   return (
     <div className="group border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -156,10 +175,11 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                              {canViewPdf && (
                                  <button 
                                      onClick={handleOpenPdf}
-                                     className="text-[11px] text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline flex items-center gap-1 transition-colors"
+                                     disabled={isLoadingPdf}
+                                     className={`text-[11px] ${isLoadingPdf ? 'text-orange-400 cursor-wait' : 'text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline'} flex items-center gap-1 transition-colors`}
                                  >
                                      <Eye size={10} />
-                                     View PDF
+                                     {isLoadingPdf ? 'Loading...' : 'View PDF'}
                                  </button>
                              )}
 
@@ -181,17 +201,32 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                     </div>
                 ) : (
                     <div className="mt-1">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-2">
                         {file.status === 'uploading' && 'Uploading...'}
-                        {file.status === 'error' && <span className="text-red-500 dark:text-red-400">Analysis Failed</span>}
+                        {file.status === 'error' && (
+                            <>
+                                <span className="text-red-500 dark:text-red-400">Analysis Failed</span>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRetry(file.id);
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 hover:text-orange-600 transition-colors"
+                                    title="Retry Analysis"
+                                >
+                                    <RefreshCw size={12} />
+                                </button>
+                            </>
+                        )}
                         </p>
                         {canViewPdf && (
                             <button 
                                 onClick={handleOpenPdf}
-                                className="mt-1 text-[11px] text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline flex items-center gap-1 transition-colors"
+                                disabled={isLoadingPdf}
+                                className={`mt-1 text-[11px] ${isLoadingPdf ? 'text-orange-400 cursor-wait' : 'text-gray-400 hover:text-orange-600 dark:text-gray-500 dark:hover:text-orange-400 hover:underline'} flex items-center gap-1 transition-colors`}
                             >
                                 <Eye size={10} />
-                                View PDF
+                                {isLoadingPdf ? 'Loading...' : 'View PDF'}
                             </button>
                         )}
                     </div>

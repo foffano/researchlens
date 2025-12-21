@@ -35,8 +35,8 @@ export interface FileEntry {
   analyzingColumns?: string[]; // List of column IDs currently being analyzed
   analysis?: AnalysisResult;
   file?: File; // Browser runtime only (not persistent)
-  base64?: string; // Persistent storage of file content
-  folderId?: string;
+  base64?: string; // Loaded On-Demand
+  folderId?: string | null;
 }
 
 export interface ColumnConfig {
@@ -68,8 +68,42 @@ export interface FilterState {
 declare global {
   interface Window {
     electron?: {
-      saveData: (data: any) => Promise<{ success: boolean; error?: string }>;
-      loadData: () => Promise<any>;
+      // Data Sync
+      getInitialData: () => Promise<{
+        files: FileEntry[];
+        folders: Folder[];
+        settings: any;
+        columnConfigs: Record<string, ColumnConfig[]>;
+        customColumns: any[];
+      }>;
+      
+      // File Ops
+      getFilePath: (file: File) => string;
+      uploadFiles: (files: { name: string; path: string; folderId?: string }[]) => Promise<FileEntry[]>;
+      deleteFile: (id: string) => Promise<void>;
+      updateFileFolder: (fileId: string, folderId: string) => Promise<void>;
+      getFileContent: (id: string) => Promise<string | null>;
+      
+      // Folder Ops
+      addFolder: (name: string) => Promise<Folder>;
+      deleteFolder: (id: string) => Promise<void>;
+      
+      // Analysis & Data
+      saveAnalysis: (fileId: string, results: any) => Promise<void>;
+      saveColumnConfig: (folderId: string, config: ColumnConfig[]) => Promise<void>;
+      saveCustomColumn: (col: any) => Promise<void>;
+      deleteCustomColumn: (id: string) => Promise<void>;
+      saveSettings: (settings: any) => Promise<void>;
+      
+      // Search
+      searchFiles: (query: string) => Promise<string[]>; // Returns IDs
+      
+      // Maintenance
+      clearAllData: () => Promise<void>;
+      
+      // Legacy (to be removed safely or kept for compatibility if needed)
+      saveData?: (data: any) => Promise<any>;
+      loadData?: () => Promise<any>;
     };
   }
 }

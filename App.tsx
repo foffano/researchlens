@@ -4,7 +4,7 @@ import { RightSidebar } from './components/RightSidebar';
 import { FileRow } from './components/FileRow';
 import { SettingsModal, AppSettings } from './components/SettingsModal';
 import { analyzePdf, fileToBase64 } from './services/gemini';
-import { FileEntry, ColumnConfig, Folder } from './types';
+import { FileEntry, ColumnConfig, Folder, FilterState } from './types';
 import { Upload, Plus, Download, Search, Filter, Info, Menu } from 'lucide-react';
 import { FilterMenu } from './components/FilterMenu';
 import {
@@ -136,7 +136,7 @@ const App: React.FC = () => {
   // --- State: Settings ---
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => {
-    // Initialize from localStorage
+    // Initialize from localStorage (fallback, mainly for web)
     const saved = localStorage.getItem('researchlens_settings');
     const defaults: AppSettings = { 
       apiKey: import.meta.env.VITE_GEMINI_API_KEY || '', 
@@ -165,7 +165,6 @@ const App: React.FC = () => {
 
     applyTheme();
 
-    // Listen for system changes if theme is system
     if (settings.theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyTheme();
@@ -188,9 +187,13 @@ const App: React.FC = () => {
   const handleSaveSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
     localStorage.setItem('researchlens_settings', JSON.stringify(newSettings));
+    window.electron?.saveSettings(newSettings);
   };
 
-  const handleClearData = () => {
+  const handleClearData = async () => {
+     if (window.electron?.clearAllData) {
+         await window.electron.clearAllData();
+     }
      setFiles([]);
      setFolders([]);
      setSelectedFolderId(null);
@@ -213,41 +216,44 @@ const App: React.FC = () => {
   // 1. Load Data on Mount
   useEffect(() => {
     const load = async () => {
-      if (window.electron?.loadData) {
-        const data = await window.electron.loadData();
-        if (data) {
-          setFiles(data.files || []);
-          setFolders(data.folders || []);
-          if (data.columnConfigs) {
-            setColumnConfigs(data.columnConfigs);
+      if (window.electron?.getInitialData) {
+        try {
+          const data = await window.electron.getInitialData();
+          if (data) {
+            setFiles(data.files || []);
+            setFolders(data.folders || []);
+            if (data.columnConfigs && Object.keys(data.columnConfigs).length > 0) {
+              setColumnConfigs(data.columnConfigs);
+            }
+            if (data.customColumns) {
+              setSavedCustomColumns(data.customColumns);
+            }
+            if (data.settings && Object.keys(data.settings).length > 0) {
+              setSettings(prev => ({ ...prev, ...data.settings }));
+            }
           }
-          if (data.customColumns) {
-            setSavedCustomColumns(data.customColumns);
-          }
+        } catch (e) {
+          console.error("Failed to load initial data", e);
         }
       }
     };
     load();
   }, []);
 
-  // 1.5 Sync Root Columns (Ensure "All Files" sees all available columns)
+  // 1.5 Sync Root Columns
   useEffect(() => {
       setColumnConfigs(prev => {
-          // Construct the ideal 'root' configuration:
-          // Start with all DEFAULT_COLUMNS, ensuring they are visible.
-          // Then append all savedCustomColumns, also ensuring they are visible.
           const idealRootColumns: ColumnConfig[] = [
               ...DEFAULT_COLUMNS.map(col => ({ ...col, visible: true })),
               ...savedCustomColumns.map(customCol => ({
                   id: customCol.id,
                   label: customCol.label,
                   visible: true,
-                  width: '350px', // Default width for custom columns
+                  width: '350px',
                   prompt: customCol.prompt
               }))
           ];
 
-          // Filter out any potential duplicates by ID, prioritizing the order as defined (defaults then custom)
           const uniqueIdealRootColumns: ColumnConfig[] = [];
           const seenIds = new Set<string>();
           idealRootColumns.forEach(col => {
@@ -257,58 +263,41 @@ const App: React.FC = () => {
               }
           });
 
-          // Get the current 'root' config to compare
           const currentRootConfig = prev['root'] || [];
-
-          // Compare the ideal configuration with the current one
-          // Check if lengths are the same and if all items match in ID and visibility status
           const isSameConfig = uniqueIdealRootColumns.length === currentRootConfig.length &&
                                uniqueIdealRootColumns.every((col, index) => 
                                    col.id === currentRootConfig[index]?.id && col.visible === currentRootConfig[index]?.visible
                                );
 
-          // Only update if the configuration is genuinely different to avoid unnecessary re-renders
           if (!isSameConfig) {
-              return {
-                  ...prev,
-                  'root': uniqueIdealRootColumns
-              };
+              return { ...prev, 'root': uniqueIdealRootColumns };
           }
           return prev;
       });
-  }, [savedCustomColumns]); // This effect depends on savedCustomColumns to react to new custom columns
+  }, [savedCustomColumns]);
 
-  // 2. Save Data on Change (Debounced could be better, but simple effect for now)
-  // We skip saving if files is empty to avoid overwriting with initial empty state before load completes
-  // BUT we need to handle the case where user genuinely deletes everything.
-  // A simple way is to use a "loaded" flag, but for now we'll assume if window.electron exists, we save.
+  // Persist Column Configs when they change
+  const activeFolderKey = selectedFolderId || 'root';
   useEffect(() => {
-    if (window.electron?.saveData) {
-      const dataToSave = {
-        files,
-        folders,
-        columnConfigs,
-        customColumns: savedCustomColumns
-      };
-      // Timeout to debounce slightly
-      const timer = setTimeout(() => {
-        window.electron!.saveData(dataToSave);
-      }, 1000);
-      return () => clearTimeout(timer);
+    if (window.electron?.saveColumnConfig) {
+      // Save ONLY the active folder config to avoid spamming
+      const config = columnConfigs[activeFolderKey];
+      if (config) {
+        window.electron.saveColumnConfig(activeFolderKey, config);
+      }
     }
-  }, [files, folders, columnConfigs, savedCustomColumns]);
+  }, [columnConfigs, activeFolderKey]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to get columns for current view
-  const activeFolderKey = selectedFolderId || 'root';
   const activeColumns = columnConfigs[activeFolderKey] || DEFAULT_COLUMNS;
 
   // --- DnD Logic ---
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Require 8px movement before drag starts (prevents accidental drags on clicks)
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -336,47 +325,52 @@ const App: React.FC = () => {
   };
   
   // --- Folder Logic ---
-  const handleCreateFolder = (name: string) => {
-    const newFolder: Folder = {
-      id: Math.random().toString(36).substring(2, 9),
-      name: name
-    };
-    setFolders(prev => [...prev, newFolder]);
-    
-    // Initialize columns for new folder with ONLY the 'Files' column
-    setColumnConfigs(prev => ({
-        ...prev,
-        [newFolder.id]: [{ id: 'fileInfo', label: 'Files', visible: true, width: '400px' }]
-    }));
-    
-    setSelectedFolderId(newFolder.id); // Auto-select new folder
+  const handleCreateFolder = async (name: string) => {
+    if (window.electron?.addFolder) {
+      const newFolder = await window.electron.addFolder(name);
+      setFolders(prev => [...prev, newFolder]);
+      
+      // Initialize columns
+      const initialCols = [{ id: 'fileInfo', label: 'Files', visible: true, width: '400px' }];
+      setColumnConfigs(prev => ({
+          ...prev,
+          [newFolder.id]: initialCols
+      }));
+      if (window.electron?.saveColumnConfig) {
+        window.electron.saveColumnConfig(newFolder.id, initialCols);
+      }
+      
+      setSelectedFolderId(newFolder.id);
+    }
   };
 
   const handleDeleteFolder = (folderId: string) => {
-    // 1. Move files out of folder
+    if (window.electron?.deleteFolder) {
+      window.electron.deleteFolder(folderId);
+    }
+
     setFiles(prev => prev.map(f => 
-      f.folderId === folderId ? { ...f, folderId: undefined } : f
+      f.folderId === folderId ? { ...f, folderId: null } : f
     ));
-
-    // 2. Remove folder
     setFolders(prev => prev.filter(f => f.id !== folderId));
-
-    // 3. Cleanup configs
     setColumnConfigs(prev => {
       const newConfigs = { ...prev };
       delete newConfigs[folderId];
       return newConfigs;
     });
 
-    // 4. Reset selection if needed
     if (selectedFolderId === folderId) {
       setSelectedFolderId(null);
     }
   };
 
   const handleMoveFile = (fileId: string, folderId: string | undefined) => {
+    const newFolderId = folderId || null;
+    if (window.electron?.updateFileFolder) {
+      window.electron.updateFileFolder(fileId, newFolderId || '');
+    }
     setFiles(prev => prev.map(f => 
-      f.id === fileId ? { ...f, folderId } : f
+      f.id === fileId ? { ...f, folderId: newFolderId } : f
     ));
   };
 
@@ -388,7 +382,7 @@ const App: React.FC = () => {
     // 1. Folder Filter
     if (selectedFolderId !== null && f.folderId !== selectedFolderId) return false;
 
-    // 2. Search Query (Global Text Match)
+    // 2. Search Query
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
       const meta = f.analysis?.metadata;
@@ -396,7 +390,6 @@ const App: React.FC = () => {
       const authors = meta?.authors?.join(' ').toLowerCase() || '';
       const name = f.name.toLowerCase();
       
-      // Also check content in dynamic columns
       const dynamicContent = activeColumns.map(c => {
          const val = f.analysis?.[c.id];
          return typeof val === 'string' ? val.toLowerCase() : ''; 
@@ -407,7 +400,7 @@ const App: React.FC = () => {
       }
     }
 
-    // 3. Date Range Filter (Upload Date)
+    // 3. Date Range
     if (filters.dateRange.start) {
        const fileDate = new Date(f.uploadDate).setHours(0,0,0,0);
        const startDate = new Date(filters.dateRange.start).setHours(0,0,0,0);
@@ -419,7 +412,7 @@ const App: React.FC = () => {
        if (fileDate > endDate) return false;
     }
 
-    // 4. Article Type Filter
+    // 4. Article Type
     if (filters.articleTypes.length > 0) {
       const type = f.analysis?.metadata?.articleType;
       if (!type || !filters.articleTypes.includes(type)) return false;
@@ -433,32 +426,40 @@ const App: React.FC = () => {
     const folder = folders.find(f => f.id === selectedFolderId);
     return folder ? folder.name : "Unknown Folder";
   };
-  // --------------------
-
-  // Reusable function to trigger analysis for a single file
-  // columnsToAnalyze: List of {id, prompt} objects to send to Gemini
-  // merge: If true, we keep existing analysis and only update the specified columns.
+  
+  // Reusable function to trigger analysis
   const processFileAnalysis = async (
     fileEntry: FileEntry, 
     columnsToAnalyze: { id: string, prompt: string }[], 
     merge: boolean = false,
     overrideModelId?: string
   ) => {
-      // We need either a File object or Base64 string
-      const input = fileEntry.base64 || fileEntry.file;
-      if (!input) return;
+      // 1. Get Base64 if missing (On-Demand Loading)
+      let input = fileEntry.base64;
+      if (!input && fileEntry.file) {
+        // Fallback for browser-only mode or just uploaded object
+        input = await fileToBase64(fileEntry.file);
+      } else if (!input && window.electron?.getFileContent) {
+        // Fetch from Backend
+        const loaded = await window.electron.getFileContent(fileEntry.id);
+        if (loaded) input = loaded;
+      }
 
-      if (!settings.apiKey) {
-        alert("Please set your Gemini API Key in Settings first.");
+      if (!input) {
+        console.error("Could not load file content for analysis");
         setFiles(prev => prev.map(f => f.id === fileEntry.id ? { ...f, status: 'error' } : f));
         return;
       }
 
-      // Update status to analyzing AND clear content for target columns to trigger animation
+      if (!settings.apiKey) {
+        alert("Please set your Gemini API Key in Settings first.");
+        return;
+      }
+
+      // UI Update: Analyzing
       setFiles(prev => prev.map(f => {
           if (f.id !== fileEntry.id) return f;
-
-          // If merging (re-analyzing), we clear the specific columns so the UI shows the skeleton/loading state
+          
           let newAnalysis = f.analysis;
           if (merge && newAnalysis) {
               newAnalysis = { ...newAnalysis };
@@ -467,7 +468,6 @@ const App: React.FC = () => {
               });
           }
           
-          // Track which columns are being analyzed
           const currentAnalyzing = f.analyzingColumns || [];
           const newAnalyzing = [...currentAnalyzing];
           columnsToAnalyze.forEach(c => {
@@ -547,11 +547,16 @@ const App: React.FC = () => {
                   analysis: finalAnalysis 
               };
           }));
+
+          // Save to DB (Save just the new result, DB handles merging/upserting)
+          if (window.electron?.saveAnalysis) {
+             await window.electron.saveAnalysis(fileEntry.id, result);
+          }
+
       } catch (error) {
           console.error(`Error analyzing file ${fileEntry.id}:`, error);
           setFiles(prev => prev.map(f => {
               if (f.id !== fileEntry.id) return f;
-              // Remove processed columns on error too
               const remainingAnalyzing = (f.analyzingColumns || []).filter(
                   colId => !columnsToAnalyze.find(c => c.id === colId)
               );
@@ -573,31 +578,43 @@ const App: React.FC = () => {
       alert("Please configure your Gemini API Key in Settings to start analyzing files.");
     }
 
-    // Convert all files to FileEntry with Base64
-    // We do this concurrently
-    const newFilesPromises = (Array.from(uploadedFiles) as File[]).map(async (file) => {
-        const base64 = await fileToBase64(file);
-        return {
-          id: Math.random().toString(36).substring(2, 9),
-          name: file.name,
-          uploadDate: new Date().toISOString(),
-          status: 'uploading' as const,
-          // We don't store the raw 'file' object anymore for persistence, just base64
-          base64: base64, 
-          folderId: selectedFolderId || undefined
-        };
-    });
-
-    const newFiles = await Promise.all(newFilesPromises);
-
-    setFiles(prev => [...newFiles, ...prev]);
-
-    // Only trigger Metadata Analysis (empty columns list)
-    // Users must click "Analyze" manually for specific columns
-    if (settings.apiKey) {
-      for (const fileEntry of newFiles) {
-          processFileAnalysis(fileEntry, [], false);
-      }
+    // Backend Upload
+    if (window.electron?.uploadFiles) {
+       // Convert FileList to array of simple objects with path
+       const fileList = Array.from(uploadedFiles).map(f => {
+          // Use helper to get real path securely
+          const realPath = window.electron?.getFilePath ? window.electron.getFilePath(f) : (f as any).path;
+          return {
+            name: f.name,
+            path: realPath,
+            folderId: selectedFolderId || undefined
+          };
+       });
+       
+       const newFiles = await window.electron.uploadFiles(fileList);
+       setFiles(prev => [...newFiles, ...prev]);
+       
+       // Trigger Analysis if key is present
+       if (settings.apiKey) {
+           for (const fileEntry of newFiles) {
+              processFileAnalysis(fileEntry, [], false);
+           }
+       }
+    } else {
+        // Fallback for Web (non-electron) - Keeps Base64 in memory
+        const newFilesPromises = (Array.from(uploadedFiles) as File[]).map(async (file) => {
+            const base64 = await fileToBase64(file);
+            return {
+              id: Math.random().toString(36).substring(2, 9),
+              name: file.name,
+              uploadDate: new Date().toISOString(),
+              status: 'uploading' as const,
+              base64: base64, 
+              folderId: selectedFolderId || undefined
+            };
+        });
+        const newFiles = await Promise.all(newFilesPromises);
+        setFiles(prev => [...newFiles, ...prev]);
     }
     
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -605,39 +622,25 @@ const App: React.FC = () => {
 
   const handleAddColumn = (key: string, customPrompt?: string) => {
     let newColConfig: ColumnConfig | undefined;
-    let colPrompt = customPrompt;
-
-    // 1. Update columns state for the CURRENT view (folder or root)
+    
+    // 1. Update columns state
     setColumnConfigs(prev => {
         const currentConfig = prev[activeFolderKey] || DEFAULT_COLUMNS;
-        
-        // Check if column already exists (e.g. toggling visibility of a suggested one)
         const exists = currentConfig.find(c => c.id === key);
 
         let newConfig;
         if (exists) {
-            // Just toggle visibility
-            newColConfig = { ...exists, visible: true }; // for immediate use below
-            colPrompt = exists.prompt; // grab existing prompt
-
             newConfig = currentConfig.map(c => {
                  if (c.id === key) return { ...c, visible: true };
                  return c;
             });
         } else {
-            // Create new column (Custom or Suggested that wasn't in config yet)
-            // For suggested columns from sidebar that aren't in DEFAULT (if any), we need prompt lookup
-            // But currently DEFAULT_COLUMNS covers all suggested ones. 
-            // So this branch is primarily for BRAND NEW CUSTOM columns.
-            
-            // Format label: Replace underscores with spaces and capitalize
             const rawLabel = customPrompt ? key.replace('custom_', '').replace(/_[0-9]+$/, '') : key;
             const formattedLabel = rawLabel.replace(/_/g, ' ')
                                         .split(' ')
                                         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                                         .join(' ');
 
-            // Try to find label from default if it's a known key but somehow missing
             const defaultMatch = DEFAULT_COLUMNS.find(d => d.id === key);
             const finalLabel = defaultMatch ? defaultMatch.label : formattedLabel;
 
@@ -648,39 +651,29 @@ const App: React.FC = () => {
                 width: '350px',
                 prompt: customPrompt || defaultMatch?.prompt
             };
-            
-            colPrompt = newColConfig.prompt;
             newConfig = [...currentConfig, newColConfig];
         }
-
         return { ...prev, [activeFolderKey]: newConfig };
     });
 
-    // 1b. Save to "My Columns" if it's a new custom column
+    // 1b. Save Custom Column
     if (customPrompt && !DEFAULT_COLUMNS.find(c => c.id === key)) {
+       const newCustomCol = { 
+          id: key, 
+          label: key, // Simplified label storing
+          prompt: customPrompt 
+       };
        setSavedCustomColumns(prev => {
           if (prev.find(c => c.id === key)) return prev;
-          // Format label same as above
-          const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, ''); 
-          const formattedLabel = rawLabel.replace(/_/g, ' ')
-                                        .split(' ')
-                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                        .join(' ');
-          
-          return [...prev, { 
-             id: key, 
-             label: formattedLabel, 
-             prompt: customPrompt 
-          }];
+          return [...prev, newCustomCol];
        });
+       if (window.electron?.saveCustomColumn) {
+          window.electron.saveCustomColumn(newCustomCol);
+       }
     }
-
-    // 2. Identify existing completed files that are in the CURRENT view
-    // REMOVED: Automatic analysis trigger. Users must now click "Analyze" manually.
   };
 
   const handleDeleteCustomColumn = (colId: string) => {
-      // Optional: Confirm before delete
       setItemToDelete({ type: 'column', id: colId });
   };
 
@@ -717,10 +710,17 @@ const App: React.FC = () => {
       processFileAnalysis(file, [{ id: colId, prompt }], true, modelId);
   };
 
+  const handleRetryAnalysis = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (file) {
+        // Retry initial metadata analysis
+        processFileAnalysis(file, [], false);
+    }
+  };
+
   // handleRestoreHistory removed as per requirements
 
   const toggleColumnVisibility = (id: string) => {
-      // Toggling off doesn't require re-analysis, just hiding.
       setColumnConfigs(prev => {
         const currentConfig = prev[activeFolderKey] || DEFAULT_COLUMNS;
         const newConfig = currentConfig.map(c => c.id === id ? {...c, visible: !c.visible} : c);
@@ -734,26 +734,14 @@ const App: React.FC = () => {
       return;
     }
 
-    // 1. Headers: Include standard metadata columns before dynamic ones
     const headers = [
-      'File Name', 
-      'Title', 
-      'Authors', 
-      'Publication Year', 
-      'DOI/URL', 
-      'Article Type',
-      'Upload Date'
+      'File Name', 'Title', 'Authors', 'Publication Year', 'DOI/URL', 'Article Type', 'Upload Date'
     ];
-    
     const dynamicCols = activeColumns.filter(c => c.id !== 'fileInfo' && c.visible);
     dynamicCols.forEach(col => headers.push(col.label));
 
-    // 2. Rows
     const rows = filteredFiles.map(file => {
-        // Safe access helper
         const meta = file.analysis?.metadata || {};
-        
-        // Format authors array to string
         const authorsStr = Array.isArray(meta.authors) ? meta.authors.join('; ') : (meta.authors || '');
 
         const rowData = [
@@ -768,30 +756,17 @@ const App: React.FC = () => {
 
         dynamicCols.forEach(col => {
             let val: any = file.analysis?.[col.id];
-            
-            if (Array.isArray(val)) {
-                val = val.join('; ');
-            } else if (typeof val === 'object' && val !== null) {
-                 val = JSON.stringify(val);
-            }
-            
-            if (val === undefined || val === null) {
-                val = '';
-            } else {
-                val = String(val);
-            }
-            
-            // Escape quotes and wrap in quotes for CSV
+            if (Array.isArray(val)) val = val.join('; ');
+            else if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+            if (val === undefined || val === null) val = '';
+            else val = String(val);
             val = `"${val.replace(/"/g, '""')}"`;
             rowData.push(val);
         });
-        
         return rowData.join(',');
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
-    
-    // 3. Trigger Download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -806,13 +781,16 @@ const App: React.FC = () => {
     if (!itemToDelete) return;
 
     if (itemToDelete.type === 'file') {
+      if (window.electron?.deleteFile) window.electron.deleteFile(itemToDelete.id);
       setFiles(prev => prev.filter(f => f.id !== itemToDelete.id));
     } else if (itemToDelete.type === 'column') {
+      if (window.electron?.deleteCustomColumn) window.electron.deleteCustomColumn(itemToDelete.id);
       setSavedCustomColumns(prev => prev.filter(c => c.id !== itemToDelete.id));
     }
     setItemToDelete(null);
   };
 
+  // ... (JSX is same structure, just verifying handlers are passed correctly)
   return (
     <div className="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
       <Sidebar 
@@ -857,7 +835,6 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-3">
-                {/* Search Bar */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input 
@@ -869,7 +846,6 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                {/* Filter Button */}
                 <div className="relative">
                   <button 
                     onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
@@ -880,7 +856,6 @@ const App: React.FC = () => {
                     }`}
                   >
                     <Filter size={20} />
-                    {/* Active Filter Indicator Dot */}
                     {(filters.articleTypes.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
                       <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white dark:border-gray-800"></span>
                     )}
@@ -987,6 +962,7 @@ const App: React.FC = () => {
                                 onMoveFile={handleMoveFile}
                                 onDelete={handleDeleteFile}
                                 onAnalyzeColumn={handleAnalyzeColumn}
+                                onRetry={handleRetryAnalysis}
                                 fontSize={settings.fontSize || 'medium'}
                             />
                         ))
@@ -1005,7 +981,6 @@ const App: React.FC = () => {
         onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
       />
 
-      {/* Delete Confirmation Modal */}
       {itemToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-80 p-4 animate-in fade-in zoom-in duration-100">

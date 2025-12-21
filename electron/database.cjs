@@ -1,0 +1,404 @@
+const Database = require('better-sqlite3');
+const path = require('path');
+const { app } = require('electron');
+const fs = require('fs-extra');
+
+let db;
+
+function initDatabase() {
+  const userDataPath = app.getPath('userData');
+  const dbPath = path.join(userDataPath, 'researchlens.db');
+  
+  fs.ensureDirSync(userDataPath);
+
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  // Tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS files (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      storagePath TEXT,
+      originalPath TEXT,
+      folderId TEXT,
+      uploadDate TEXT,
+      status TEXT,
+      error TEXT,
+      FOREIGN KEY(folderId) REFERENCES folders(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS column_configs (
+      folderId TEXT PRIMARY KEY,
+      config TEXT
+    );
+    
+    CREATE TABLE IF NOT EXISTS custom_columns (
+      id TEXT PRIMARY KEY,
+      label TEXT,
+      prompt TEXT
+    );
+  `);
+
+  // --- MIGRATION: Check Analysis Table Schema ---
+  // We need Primary Key to be (fileId, columnId, model) to support multiple responses.
+  // Old schema was (fileId, columnId).
+  
+  const tableInfo = db.pragma('table_info(analysis)');
+  // Check if 'analysis' table exists
+  if (tableInfo.length > 0) {
+      // Check number of PK columns. If < 3, we need to migrate.
+      const pkCount = tableInfo.filter(col => col.pk > 0).length;
+      
+      if (pkCount < 3) {
+          console.log("Migrating 'analysis' table to support multiple models...");
+          db.transaction(() => {
+              // 1. Rename old table
+              db.exec("ALTER TABLE analysis RENAME TO analysis_old");
+              
+              // 2. Create new table
+              db.exec(`
+                CREATE TABLE analysis (
+                  fileId TEXT,
+                  columnId TEXT,
+                  content TEXT,
+                  model TEXT,
+                  timestamp TEXT,
+                  PRIMARY KEY (fileId, columnId, model),
+                  FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
+                )
+              `);
+              
+              // 3. Copy data (Handling potential duplicates if any, though unlikely in old schema)
+              // We default 'model' to 'unknown' if it was null, or rely on existing data
+              db.exec(`
+                INSERT OR REPLACE INTO analysis (fileId, columnId, content, model, timestamp)
+                SELECT fileId, columnId, content, COALESCE(model, 'default'), timestamp FROM analysis_old
+              `);
+              
+              // 4. Drop old table
+              db.exec("DROP TABLE analysis_old");
+          })();
+          console.log("Migration complete.");
+      }
+  } else {
+      // Create fresh if doesn't exist
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS analysis (
+          fileId TEXT,
+          columnId TEXT,
+          content TEXT,
+          model TEXT,
+          timestamp TEXT,
+          PRIMARY KEY (fileId, columnId, model),
+          FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
+        )
+      `);
+  }
+  
+  console.log('Database initialized at:', dbPath);
+}
+
+// --- FILE OPERATIONS ---
+
+function getFile(id) {
+  return db.prepare('SELECT * FROM files WHERE id = ?').get(id);
+}
+
+function getAllFiles() {
+  // 1. Get all basic file info
+  const files = db.prepare('SELECT * FROM files').all();
+  
+  // 2. Get ALL analysis rows (efficiently fetching everything to map in memory)
+  // We sort by timestamp asc so later overwrites earlier in our reducing logic if needed,
+  // but we usually want the LATEST one to be the "main" display.
+  const allAnalysis = db.prepare('SELECT * FROM analysis ORDER BY timestamp ASC').all();
+
+  // 3. Map analysis to files
+  // Structure: fileId -> { metadata: {}, [colId]: content, _models: {}, _responses: {} }
+  const analysisMap = {};
+
+  allAnalysis.forEach(row => {
+      if (!analysisMap[row.fileId]) {
+          analysisMap[row.fileId] = { 
+              _models: {}, 
+              _responses: {} 
+          };
+      }
+      
+      const fileAnalysis = analysisMap[row.fileId];
+      let content = row.content;
+
+      // Parse JSON content if it looks like JSON (for metadata or complex structures)
+      try {
+          if (content && (content.startsWith('{') || content.startsWith('['))) {
+             content = JSON.parse(content);
+          }
+      } catch (e) { /* ignore */ }
+
+      // Handle Metadata specifically
+      if (row.columnId === 'metadata') {
+          fileAnalysis.metadata = content;
+          return; 
+      }
+
+      // Add to _responses (History)
+      if (!fileAnalysis._responses[row.columnId]) {
+          fileAnalysis._responses[row.columnId] = {};
+      }
+      const modelKey = row.model || 'default';
+      fileAnalysis._responses[row.columnId][modelKey] = content;
+
+      // Update "Main" display and "Active Model" based on latest timestamp (since we iterate ordered by time)
+      // This effectively sets the state to the last saved interaction
+      fileAnalysis[row.columnId] = content;
+      fileAnalysis._models[row.columnId] = modelKey;
+  });
+
+  // 4. Merge into files
+  return files.map(f => {
+    return {
+      id: f.id,
+      name: f.name,
+      uploadDate: f.uploadDate,
+      folderId: f.folderId,
+      status: f.status,
+      analysis: analysisMap[f.id] || {}
+    };
+  });
+}
+
+function addFile(fileData) {
+  const stmt = db.prepare(`
+    INSERT INTO files (id, name, storagePath, originalPath, folderId, uploadDate, status)
+    VALUES (@id, @name, @storagePath, @originalPath, @folderId, @uploadDate, @status)
+  `);
+  stmt.run(fileData);
+}
+
+function updateFileStatus(id, status, error = null) {
+  const stmt = db.prepare('UPDATE files SET status = ?, error = ? WHERE id = ?');
+  stmt.run(status, error, id);
+}
+
+function updateFileFolder(fileId, folderId) {
+    const stmt = db.prepare('UPDATE files SET folderId = ? WHERE id = ?');
+    stmt.run(folderId, fileId);
+}
+
+function deleteFile(id) {
+  const file = db.prepare('SELECT storagePath FROM files WHERE id = ?').get(id);
+  const deleteStmt = db.prepare('DELETE FROM files WHERE id = ?');
+  deleteStmt.run(id);
+
+  if (file && file.storagePath) {
+    try {
+      if (fs.existsSync(file.storagePath)) {
+        fs.unlinkSync(file.storagePath);
+      }
+    } catch (err) {
+      console.error('Error deleting physical file:', err);
+    }
+  }
+}
+
+// --- FOLDER OPERATIONS ---
+
+function getFolders() {
+  return db.prepare('SELECT * FROM folders').all();
+}
+
+function addFolder(folder) {
+  const stmt = db.prepare('INSERT INTO folders (id, name) VALUES (@id, @name)');
+  stmt.run(folder);
+}
+
+function deleteFolder(id) {
+  db.prepare('DELETE FROM folders WHERE id = ?').run(id);
+  db.prepare('DELETE FROM column_configs WHERE folderId = ?').run(id);
+}
+
+// --- ANALYSIS OPERATIONS ---
+
+function saveAnalysis(fileId, results) {
+  // results: { summary: "...", _models: { summary: "gemini-pro"}, _responses: { summary: { "gemini-pro": "..." } } }
+  
+  const insert = db.prepare(`
+    INSERT INTO analysis (fileId, columnId, content, model, timestamp)
+    VALUES (@fileId, @columnId, @content, @model, @timestamp)
+    ON CONFLICT(fileId, columnId, model) DO UPDATE SET
+      content = excluded.content,
+      timestamp = excluded.timestamp
+  `);
+
+  const timestamp = new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    // 1. Save Metadata if present (it's usually top-level)
+    if (results.metadata) {
+        insert.run({
+            fileId,
+            columnId: 'metadata',
+            content: JSON.stringify(results.metadata),
+            model: 'system',
+            timestamp
+        });
+    }
+
+    // 2. Save Responses
+    // If _responses exists, it's the source of truth for ALL variations.
+    if (results._responses) {
+        for (const [colId, modelMap] of Object.entries(results._responses)) {
+            for (const [modelId, content] of Object.entries(modelMap)) {
+                let contentToSave = content;
+                if (typeof content === 'object') contentToSave = JSON.stringify(content);
+                
+                insert.run({
+                    fileId,
+                    columnId: colId,
+                    content: contentToSave,
+                    model: modelId,
+                    timestamp
+                });
+            }
+        }
+    } else {
+        // Fallback: If no _responses structure (legacy or simple update), save top-level keys
+        // Note: This might default to 'unknown' model if not specified
+        const models = results._models || {};
+        for (const [key, value] of Object.entries(results)) {
+             if (key === '_models' || key === '_responses' || key === 'metadata') continue;
+             
+             let contentToSave = value;
+             if (typeof value === 'object') contentToSave = JSON.stringify(value);
+
+             insert.run({
+                 fileId,
+                 columnId: key,
+                 content: contentToSave,
+                 model: models[key] || 'default',
+                 timestamp
+             });
+        }
+    }
+  });
+
+  transaction();
+}
+
+// --- SETTINGS & CONFIGS ---
+
+function loadSettings() {
+  const rows = db.prepare('SELECT * FROM settings').all();
+  const settings = {};
+  rows.forEach(r => {
+    try {
+      settings[r.key] = JSON.parse(r.value);
+    } catch (e) {
+      settings[r.key] = r.value;
+    }
+  });
+  return settings;
+}
+
+function saveSetting(key, value) {
+  const stmt = db.prepare(`
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `);
+  stmt.run(key, JSON.stringify(value));
+}
+
+function getColumnConfigs() {
+  const rows = db.prepare('SELECT * FROM column_configs').all();
+  const configs = {};
+  rows.forEach(r => {
+    configs[r.folderId] = JSON.parse(r.config);
+  });
+  return configs;
+}
+
+function saveColumnConfig(folderId, config) {
+  const stmt = db.prepare(`
+    INSERT INTO column_configs (folderId, config) VALUES (?, ?)
+    ON CONFLICT(folderId) DO UPDATE SET config = excluded.config
+  `);
+  stmt.run(folderId, JSON.stringify(config));
+}
+
+function getCustomColumns() {
+  return db.prepare('SELECT * FROM custom_columns').all();
+}
+
+function saveCustomColumn(col) {
+  const stmt = db.prepare(`
+    INSERT INTO custom_columns (id, label, prompt) VALUES (@id, @label, @prompt)
+    ON CONFLICT(id) DO UPDATE SET label = excluded.label, prompt = excluded.prompt
+  `);
+  stmt.run(col);
+}
+
+function deleteCustomColumn(id) {
+    db.prepare('DELETE FROM custom_columns WHERE id = ?').run(id);
+}
+
+function clearDatabase() {
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM analysis').run();
+    db.prepare('DELETE FROM files').run();
+    db.prepare('DELETE FROM folders').run();
+    db.prepare('DELETE FROM column_configs').run();
+    // We optionally keep settings and custom_columns, or nuke them too? 
+    // Usually "Clear Data" implies content, not preferences. Keeping settings/custom_columns for now.
+  });
+  transaction();
+  
+  // Return the storage path so main process can clean up files
+  return true;
+}
+
+// --- SEARCH ---
+function searchFiles(query) {
+    const likeQuery = `%${query}%`;
+    const stmt = db.prepare(`
+        SELECT DISTINCT f.id 
+        FROM files f
+        LEFT JOIN analysis a ON f.id = a.fileId
+        WHERE f.name LIKE ? OR a.content LIKE ?
+    `);
+    const rows = stmt.all(likeQuery, likeQuery);
+    return rows.map(r => r.id);
+}
+
+module.exports = {
+  initDatabase,
+  getAllFiles,
+  getFile,
+  addFile,
+  updateFileStatus,
+  updateFileFolder,
+  deleteFile,
+  getFolders,
+  addFolder,
+  deleteFolder,
+  saveAnalysis,
+  loadSettings,
+  saveSetting,
+  getColumnConfigs,
+  saveColumnConfig,
+  getCustomColumns,
+  saveCustomColumn,
+  deleteCustomColumn,
+  clearDatabase,
+  searchFiles
+};
