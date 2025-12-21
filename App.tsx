@@ -697,11 +697,21 @@ const App: React.FC = () => {
         return { ...prev, [activeFolderKey]: newConfig };
     });
 
-    // 1b. Save Custom Column
+    // 1b. Save to "My Columns" if it's a new custom column
     if (customPrompt && !DEFAULT_COLUMNS.find(c => c.id === key)) {
+       // Re-calculate formatted label for storage if needed, or reuse variable if scope permits.
+       // Since variables above are inside the setColumnConfigs callback, we need to recreate the label logic here 
+       // OR move the logic outside. Moving outside is cleaner.
+       
+       const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, '');
+       const formattedLabel = rawLabel.replace(/_/g, ' ')
+                                    .split(' ')
+                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .join(' ');
+
        const newCustomCol = { 
           id: key, 
-          label: key, // Simplified label storing
+          label: formattedLabel, 
           prompt: customPrompt 
        };
        setSavedCustomColumns(prev => {
