@@ -18,6 +18,22 @@ const formatModelName = (modelId?: string) => {
     return modelId.replace('gemini-', '').replace('pro', 'Pro').replace('flash', 'Flash').replace('preview', '(Pre)');
 };
 
+const getArticleTypeColor = (type?: string) => {
+    if (!type) return 'bg-gray-50 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-gray-800';
+    
+    const t = type.toLowerCase();
+    
+    if (t.includes('research')) return 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-800';
+    if (t.includes('review')) return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800';
+    if (t.includes('survey')) return 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800';
+    if (t.includes('case')) return 'bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-100 dark:border-fuchsia-800';
+    if (t.includes('editorial') || t.includes('letter')) return 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800';
+    if (t.includes('conference') || t.includes('proceeding')) return 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-cyan-100 dark:border-cyan-800';
+    if (t.includes('book') || t.includes('chapter')) return 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-100 dark:border-rose-800';
+
+    return 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-800';
+};
+
 export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMoveFile, onDelete, onAnalyzeColumn, onRetry, fontSize = 'medium' }) => {
   // Use extracted metadata if available, otherwise fallback to filename
   const displayTitle = file.analysis?.metadata?.title || file.name;
@@ -161,7 +177,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                          {/* Badges Row */}
                          <div className="flex flex-wrap items-center gap-2">
                              {displayType && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${getArticleTypeColor(displayType)}`}>
                                     {displayType}
                                 </span>
                              )}
