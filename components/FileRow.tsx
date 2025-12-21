@@ -236,11 +236,11 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                 <select 
                                     value={file.folderId || "root"}
                                     onChange={handleFolderChange}
-                                    className="text-[11px] text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 bg-transparent border-none py-0 pl-4 pr-0 focus:ring-0 cursor-pointer appearance-none w-[80px] truncate dark:bg-gray-900"
+                                    className="text-[11px] text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 bg-transparent border-none py-0 pl-4 pr-0 focus:ring-0 cursor-pointer appearance-none w-[80px] truncate"
                                 >
-                                    <option value="root">No Folder</option>
+                                    <option value="root" className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">No Folder</option>
                                     {folders.map(f => (
-                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                        <option key={f.id} value={f.id} className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">{f.name}</option>
                                     ))}
                                 </select>
                              </div>
