@@ -157,15 +157,17 @@ function getAllFiles() {
       // Handle Metadata specifically
       if (row.columnId === 'metadata') {
           fileAnalysis.metadata = content;
-          return; 
-      }
+      } else {
+          // Add to _responses (History)
+          if (!fileAnalysis._responses[row.columnId]) {
+              fileAnalysis._responses[row.columnId] = {};
+          }
+          const modelKey = row.model || 'default';
+          fileAnalysis._responses[row.columnId][modelKey] = content;
 
-      // Add to _responses (History)
-      if (!fileAnalysis._responses[row.columnId]) {
-          fileAnalysis._responses[row.columnId] = {};
+          fileAnalysis[row.columnId] = content;
+          fileAnalysis._models[row.columnId] = modelKey;
       }
-      const modelKey = row.model || 'default';
-      fileAnalysis._responses[row.columnId][modelKey] = content;
 
       // Track tokens per file
       if (!fileAnalysis._usage) fileAnalysis._usage = { promptTokens: 0, responseTokens: 0, estimatedCost: 0 };
@@ -182,9 +184,6 @@ function getAllFiles() {
       
       const cost = (pTokens / 1000000 * inputRate) + (rTokens / 1000000 * outputRate);
       fileAnalysis._usage.estimatedCost += cost;
-
-      fileAnalysis[row.columnId] = content;
-      fileAnalysis._models[row.columnId] = modelKey;
   });
 
   // 4. Merge into files
