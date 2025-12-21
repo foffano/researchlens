@@ -228,6 +228,33 @@ function deleteFolder(id) {
   db.prepare('DELETE FROM column_configs WHERE folderId = ?').run(id);
 }
 
+function deleteFolderAndFiles(folderId) {
+  const files = db.prepare('SELECT storagePath FROM files WHERE folderId = ?').all(folderId);
+  
+  // 1. Delete physical files
+  files.forEach(f => {
+    if (f.storagePath) {
+      try {
+        if (fs.existsSync(f.storagePath)) {
+          fs.unlinkSync(f.storagePath);
+        }
+      } catch (err) {
+        console.error('Error deleting physical file during folder nuke:', err);
+      }
+    }
+  });
+
+  // 2. Delete DB records
+  // Analysis will cascade delete because of FK, but we should be clean
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM files WHERE folderId = ?').run(folderId);
+    db.prepare('DELETE FROM folders WHERE id = ?').run(folderId);
+    db.prepare('DELETE FROM column_configs WHERE folderId = ?').run(folderId);
+  });
+  
+  transaction();
+}
+
 // --- ANALYSIS OPERATIONS ---
 
 function saveAnalysis(fileId, results) {
@@ -391,6 +418,7 @@ module.exports = {
   getFolders,
   addFolder,
   deleteFolder,
+  deleteFolderAndFiles,
   saveAnalysis,
   loadSettings,
   saveSetting,

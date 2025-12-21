@@ -32,7 +32,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when creation mode starts
@@ -55,13 +54,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       onCreateFolder(newFolderName.trim());
       setNewFolderName("");
       setIsCreating(false);
-    }
-  };
-
-  const confirmDelete = () => {
-    if (folderToDelete) {
-      onDeleteFolder(folderToDelete);
-      setFolderToDelete(null);
     }
   };
 
@@ -141,7 +133,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setFolderToDelete(folder.id);
+                          // Directly pass to parent handler which now has the smart logic
+                          onDeleteFolder(folder.id);
                         }}
                         className="hidden group-hover:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
                         title="Delete Folder"
@@ -204,32 +197,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {folderToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-80 p-4 animate-in fade-in zoom-in duration-100">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Delete Folder?</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              Files inside will be moved to 'All Files'. This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setFolderToDelete(null)}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

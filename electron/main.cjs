@@ -127,6 +127,11 @@ ipcMain.handle('delete-folder', (event, id) => {
   return { success: true };
 });
 
+ipcMain.handle('delete-folder-and-files', (event, id) => {
+  db.deleteFolderAndFiles(id);
+  return { success: true };
+});
+
 ipcMain.handle('save-analysis', (event, { fileId, results }) => {
   db.saveAnalysis(fileId, results);
   return { success: true };

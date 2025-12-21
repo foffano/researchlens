@@ -87,6 +87,7 @@ declare global {
       // Folder Ops
       addFolder: (name: string) => Promise<Folder>;
       deleteFolder: (id: string) => Promise<void>;
+      deleteFolderAndFiles: (id: string) => Promise<void>;
       
       // Analysis & Data
       saveAnalysis: (fileId: string, results: any) => Promise<void>;

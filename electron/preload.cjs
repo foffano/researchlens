@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electron', {
   // Folder Ops
   addFolder: (name) => ipcRenderer.invoke('add-folder', name),
   deleteFolder: (id) => ipcRenderer.invoke('delete-folder', id),
+  deleteFolderAndFiles: (id) => ipcRenderer.invoke('delete-folder-and-files', id),
   
   // Analysis & Columns
   saveAnalysis: (fileId, results) => ipcRenderer.invoke('save-analysis', { fileId, results }),

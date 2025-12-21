@@ -211,6 +211,7 @@ const App: React.FC = () => {
 
   // --- Deletion State ---
   const [itemToDelete, setItemToDelete] = useState<{ type: 'file' | 'column', id: string } | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
   // --- Persistence Logic ---
   // 1. Load Data on Mount
@@ -345,23 +346,63 @@ const App: React.FC = () => {
   };
 
   const handleDeleteFolder = (folderId: string) => {
-    if (window.electron?.deleteFolder) {
-      window.electron.deleteFolder(folderId);
+    // Check if folder has files
+    const hasFiles = files.some(f => f.folderId === folderId);
+    
+    if (hasFiles) {
+        setFolderToDelete(folderId);
+    } else {
+        // Empty folder, just delete
+        if (window.electron?.deleteFolder) {
+            window.electron.deleteFolder(folderId);
+        }
+        setFolders(prev => prev.filter(f => f.id !== folderId));
+        setColumnConfigs(prev => {
+            const newConfigs = { ...prev };
+            delete newConfigs[folderId];
+            return newConfigs;
+        });
+        if (selectedFolderId === folderId) setSelectedFolderId(null);
     }
+  };
 
-    setFiles(prev => prev.map(f => 
-      f.folderId === folderId ? { ...f, folderId: null } : f
-    ));
-    setFolders(prev => prev.filter(f => f.id !== folderId));
-    setColumnConfigs(prev => {
-      const newConfigs = { ...prev };
-      delete newConfigs[folderId];
-      return newConfigs;
-    });
+  const confirmDeleteFolder = async (mode: 'keep-files' | 'delete-all') => {
+      if (!folderToDelete) return;
 
-    if (selectedFolderId === folderId) {
-      setSelectedFolderId(null);
-    }
+      if (mode === 'delete-all') {
+          // 1. Delete Folder AND Files
+          if (window.electron?.deleteFolderAndFiles) {
+              await window.electron.deleteFolderAndFiles(folderToDelete);
+          }
+          // UI Updates
+          setFiles(prev => prev.filter(f => f.folderId !== folderToDelete));
+      } else {
+          // 2. Delete Folder ONLY (Keep files -> move to root)
+          if (window.electron?.deleteFolder) {
+              window.electron.deleteFolder(folderToDelete);
+          }
+          // UI Updates
+          setFiles(prev => prev.map(f => 
+            f.folderId === folderToDelete ? { ...f, folderId: undefined } : f
+          ));
+          // Move logic handles the DB update for files implicitly? 
+          // Wait, 'deleteFolder' in DB sets files to NULL via FK ON DELETE SET NULL.
+          // So no extra call needed for files if FK works.
+          // BUT, we should update local state correctly.
+      }
+
+      setFolders(prev => prev.filter(f => f.id !== folderToDelete));
+      setColumnConfigs(prev => {
+        const newConfigs = { ...prev };
+        delete newConfigs[folderToDelete];
+        return newConfigs;
+      });
+
+      if (selectedFolderId === folderToDelete) {
+        setSelectedFolderId(null);
+      }
+      
+      setFolderToDelete(null);
   };
 
   const handleMoveFile = (fileId: string, folderId: string | undefined) => {
@@ -981,6 +1022,42 @@ const App: React.FC = () => {
         onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
       />
 
+      {/* Folder Delete Modal */}
+      {folderToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-96 p-5 animate-in fade-in zoom-in duration-100">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+              Delete Folder
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+              This folder contains files. How would you like to proceed?
+            </p>
+            
+            <div className="flex flex-col gap-2">
+                <button
+                    onClick={() => confirmDeleteFolder('keep-files')}
+                    className="w-full px-4 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors flex items-center justify-center"
+                >
+                    Delete Folder Only (Keep Files)
+                </button>
+                <button
+                    onClick={() => confirmDeleteFolder('delete-all')}
+                    className="w-full px-4 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors flex items-center justify-center"
+                >
+                    Delete Folder & All Files
+                </button>
+                <button
+                    onClick={() => setFolderToDelete(null)}
+                    className="w-full mt-2 px-4 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                >
+                    Cancel
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal (Items) */}
       {itemToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-80 p-4 animate-in fade-in zoom-in duration-100">
