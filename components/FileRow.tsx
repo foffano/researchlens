@@ -42,6 +42,7 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
   // Menu State
   const [activeMenuCol, setActiveMenuCol] = useState<string | null>(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const [isAuthorsExpanded, setIsAuthorsExpanded] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -152,9 +153,17 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                          </div>
 
                          {displayAuthors && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5" title={displayAuthors}>
-                                {displayAuthors}
-                            </p>
+                            <div className="flex items-start gap-1 mt-0.5 group/authors">
+                                <p className={`text-xs text-gray-500 dark:text-gray-400 leading-normal ${!isAuthorsExpanded ? 'truncate' : 'whitespace-normal'}`} title={displayAuthors}>
+                                    {displayAuthors}
+                                </p>
+                                <button 
+                                    onClick={() => setIsAuthorsExpanded(!isAuthorsExpanded)}
+                                    className="text-[10px] text-orange-500 hover:text-orange-600 font-medium whitespace-nowrap pt-0.5"
+                                >
+                                    {isAuthorsExpanded ? 'less' : 'more'}
+                                </button>
+                            </div>
                          )}
                          
                          <div className="flex items-center gap-3 mt-2 flex-wrap">
