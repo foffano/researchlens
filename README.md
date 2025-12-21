@@ -81,6 +81,9 @@ Upon first launch, navigate to the **Settings** (gear icon) in the sidebar.
 *   **Import**: Drag and drop PDF files directly into the application window.
 *   **Organization**: Create project-specific folders to manage distinct literature sets (e.g., "Systematic Review 2024").
 
+> [!WARNING]
+> **API Rate Limits & Bulk Import**: Please be aware that the Google Gemini API has rate limits. If you import a large batch of PDFs and see a **"Analysis Failed"** status, it means the rate limit has been reached. **Wait for a minute** and try again (or process files in smaller groups).
+
 ### Step 3: Automated Analysis
 The software automatically performs a two-phase analysis on every uploaded document:
 
@@ -123,3 +126,7 @@ To ensure scientific rigor, the system uses a **Dual-Phase Dynamic Prompting** s
 ## 6. License
 
 This project is licensed under the **Apache-2.0 License** - see the [LICENSE](LICENSE) file for details.
+
+## 7. Citation
+
+Foffano, M. O. A. (2025). ResearchLens: An AI-Powered Desktop Environment for Qualitative Document Analysis and Literature Synthesis (v1.3.0). Zenodo. https://doi.org/10.5281/zenodo.18009145
