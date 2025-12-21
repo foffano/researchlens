@@ -253,7 +253,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* About Section */}
           <div className="pt-4 border-t border-gray-100 dark:border-gray-700 text-center">
-             <p className="text-xs text-gray-400">Research<span className="text-orange-500">Lens</span> v1.1.0</p>
+             <p className="text-xs text-gray-400">Research<span className="text-orange-500">Lens</span> v1.2.0</p>
              <p className="text-[10px] text-gray-400 mt-1">Copyright © 2025 Marlon Oliveira Alves Foffano</p>
           </div>
         </div>
