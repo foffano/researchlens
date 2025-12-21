@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron . --dev\"",
     "electron:build": "npm run build && electron-builder",
     "pack": "npm run build && electron-packager . \"ResearchLens\" --platform=win32 --arch=x64 --out=release-packager --overwrite"
