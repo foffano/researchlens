@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { FileText, Link as LinkIcon, ExternalLink, Eye, Folder as FolderIcon, ChevronDown, Play, Check, CloudLightning, Trash2, RefreshCw } from 'lucide-react';
 import { FileEntry, ColumnConfig, Folder, AVAILABLE_MODELS_CONFIG } from '../types';
 
@@ -43,7 +43,27 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
   const [activeMenuCol, setActiveMenuCol] = useState<string | null>(null);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [isAuthorsExpanded, setIsAuthorsExpanded] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const authorsRef = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    const checkOverflow = () => {
+        if (authorsRef.current && !isAuthorsExpanded) {
+            // Using a small buffer for subpixel rendering
+            setIsOverflowing(authorsRef.current.scrollWidth > authorsRef.current.clientWidth + 1);
+        }
+    };
+    
+    checkOverflow();
+    
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    if (authorsRef.current) {
+        resizeObserver.observe(authorsRef.current);
+    }
+    
+    return () => resizeObserver.disconnect();
+  }, [displayAuthors, isAuthorsExpanded]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -153,16 +173,22 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                          </div>
 
                          {displayAuthors && (
-                            <div className="flex items-start gap-1 mt-0.5 group/authors">
-                                <p className={`text-xs text-gray-500 dark:text-gray-400 leading-normal ${!isAuthorsExpanded ? 'truncate' : 'whitespace-normal'}`} title={displayAuthors}>
+                            <div className="flex items-start gap-1 mt-0.5 group/authors min-w-0 w-full">
+                                <p 
+                                    ref={authorsRef}
+                                    className={`flex-1 min-w-0 text-xs text-gray-500 dark:text-gray-400 leading-normal ${!isAuthorsExpanded ? 'truncate' : 'whitespace-normal'}`} 
+                                    title={displayAuthors}
+                                >
                                     {displayAuthors}
                                 </p>
-                                <button 
-                                    onClick={() => setIsAuthorsExpanded(!isAuthorsExpanded)}
-                                    className="text-[10px] text-orange-500 hover:text-orange-600 font-medium whitespace-nowrap pt-0.5"
-                                >
-                                    {isAuthorsExpanded ? 'less' : 'more'}
-                                </button>
+                                {(isOverflowing || isAuthorsExpanded) && (
+                                    <button 
+                                        onClick={() => setIsAuthorsExpanded(!isAuthorsExpanded)}
+                                        className="text-[10px] text-orange-500 hover:text-orange-600 font-medium whitespace-nowrap pt-0.5 shrink-0"
+                                    >
+                                        {isAuthorsExpanded ? 'less' : 'more'}
+                                    </button>
+                                )}
                             </div>
                          )}
                          
