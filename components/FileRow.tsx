@@ -181,6 +181,18 @@ export const FileRow: React.FC<FileRowProps> = ({ file, columns, folders, onMove
                                  </a>
                              )}
                              
+                             {file.analysis?._usage && (file.analysis._usage.promptTokens > 0) && (
+                                 <div className="text-[10px] text-gray-400 flex items-center gap-1 bg-gray-50 dark:bg-gray-800/50 px-1.5 py-0.5 rounded border border-gray-100 dark:border-gray-700" title="Tokens used for this file">
+                                     <CloudLightning size={10} className="text-orange-400" />
+                                     <span>
+                                         {((file.analysis._usage.promptTokens + file.analysis._usage.responseTokens)).toLocaleString()} tokens
+                                         {file.analysis._usage.estimatedCost !== undefined && (
+                                             <span className="ml-1 text-gray-300 dark:text-gray-600">(${file.analysis._usage.estimatedCost.toFixed(4)})</span>
+                                         )}
+                                     </span>
+                                 </div>
+                             )}
+
                              {canViewPdf && (
                                  <button 
                                      onClick={handleOpenPdf}

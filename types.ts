@@ -11,6 +11,11 @@ export interface AnalysisResult {
   metadata: PdfMetadata;
   _models?: Record<string, string>; // Maps field key to CURRENT model ID
   _responses?: Record<string, Record<string, any>>; // Maps field key -> model ID -> content
+  _usage?: {
+      promptTokens: number;
+      responseTokens: number;
+      estimatedCost?: number;
+  };
   [key: string]: any; 
 }
 
@@ -98,6 +103,7 @@ declare global {
       
       // Search
       searchFiles: (query: string) => Promise<string[]>; // Returns IDs
+      getUsageStats: () => Promise<{ model: string; totalPrompt: number; totalResponse: number }[]>;
       
       // Maintenance
       clearAllData: () => Promise<void>;

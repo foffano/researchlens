@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electron', {
   
   // Search
   searchFiles: (query) => ipcRenderer.invoke('search-files', query),
+  getUsageStats: () => ipcRenderer.invoke('get-usage-stats'),
   
   // Maintenance
   clearAllData: () => ipcRenderer.invoke('clear-all-data'),

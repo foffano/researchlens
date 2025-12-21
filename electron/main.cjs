@@ -163,6 +163,10 @@ ipcMain.handle('search-files', (event, query) => {
   return db.searchFiles(query);
 });
 
+ipcMain.handle('get-usage-stats', () => {
+  return db.getUsageStats();
+});
+
 ipcMain.handle('clear-all-data', async () => {
   try {
     db.clearDatabase();

@@ -74,22 +74,31 @@ function initDatabase() {
                   content TEXT,
                   model TEXT,
                   timestamp TEXT,
+                  promptTokens INTEGER DEFAULT 0,
+                  responseTokens INTEGER DEFAULT 0,
                   PRIMARY KEY (fileId, columnId, model),
                   FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
                 )
               `);
               
-              // 3. Copy data (Handling potential duplicates if any, though unlikely in old schema)
-              // We default 'model' to 'unknown' if it was null, or rely on existing data
+              // 3. Copy data
               db.exec(`
                 INSERT OR REPLACE INTO analysis (fileId, columnId, content, model, timestamp)
-                SELECT fileId, columnId, content, COALESCE(model, 'default'), timestamp FROM analysis_old
+                SELECT fileId, columnId, content, model, timestamp FROM analysis_old
               `);
               
               // 4. Drop old table
               db.exec("DROP TABLE analysis_old");
           })();
           console.log("Migration complete.");
+      } else {
+          // Check for missing columns (token columns) in existing table and add them if missing
+          const cols = db.pragma('table_info(analysis)').map(c => c.name);
+          if (!cols.includes('promptTokens')) {
+              console.log("Adding token columns to analysis table...");
+              db.exec("ALTER TABLE analysis ADD COLUMN promptTokens INTEGER DEFAULT 0");
+              db.exec("ALTER TABLE analysis ADD COLUMN responseTokens INTEGER DEFAULT 0");
+          }
       }
   } else {
       // Create fresh if doesn't exist
@@ -100,6 +109,8 @@ function initDatabase() {
           content TEXT,
           model TEXT,
           timestamp TEXT,
+          promptTokens INTEGER DEFAULT 0,
+          responseTokens INTEGER DEFAULT 0,
           PRIMARY KEY (fileId, columnId, model),
           FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
         )
@@ -119,13 +130,10 @@ function getAllFiles() {
   // 1. Get all basic file info
   const files = db.prepare('SELECT * FROM files').all();
   
-  // 2. Get ALL analysis rows (efficiently fetching everything to map in memory)
-  // We sort by timestamp asc so later overwrites earlier in our reducing logic if needed,
-  // but we usually want the LATEST one to be the "main" display.
+  // 2. Get ALL analysis rows
   const allAnalysis = db.prepare('SELECT * FROM analysis ORDER BY timestamp ASC').all();
 
   // 3. Map analysis to files
-  // Structure: fileId -> { metadata: {}, [colId]: content, _models: {}, _responses: {} }
   const analysisMap = {};
 
   allAnalysis.forEach(row => {
@@ -139,7 +147,7 @@ function getAllFiles() {
       const fileAnalysis = analysisMap[row.fileId];
       let content = row.content;
 
-      // Parse JSON content if it looks like JSON (for metadata or complex structures)
+      // Parse JSON content if it looks like JSON
       try {
           if (content && (content.startsWith('{') || content.startsWith('['))) {
              content = JSON.parse(content);
@@ -159,8 +167,22 @@ function getAllFiles() {
       const modelKey = row.model || 'default';
       fileAnalysis._responses[row.columnId][modelKey] = content;
 
-      // Update "Main" display and "Active Model" based on latest timestamp (since we iterate ordered by time)
-      // This effectively sets the state to the last saved interaction
+      // Track tokens per file
+      if (!fileAnalysis._usage) fileAnalysis._usage = { promptTokens: 0, responseTokens: 0, estimatedCost: 0 };
+      
+      const pTokens = row.promptTokens || 0;
+      const rTokens = row.responseTokens || 0;
+      fileAnalysis._usage.promptTokens += pTokens;
+      fileAnalysis._usage.responseTokens += rTokens;
+
+      // Calculate Cost
+      const isPro = (row.model || '').includes('pro');
+      const inputRate = isPro ? 1.25 : 0.10;
+      const outputRate = isPro ? 5.00 : 0.40;
+      
+      const cost = (pTokens / 1000000 * inputRate) + (rTokens / 1000000 * outputRate);
+      fileAnalysis._usage.estimatedCost += cost;
+
       fileAnalysis[row.columnId] = content;
       fileAnalysis._models[row.columnId] = modelKey;
   });
@@ -258,63 +280,81 @@ function deleteFolderAndFiles(folderId) {
 // --- ANALYSIS OPERATIONS ---
 
 function saveAnalysis(fileId, results) {
-  // results: { summary: "...", _models: { summary: "gemini-pro"}, _responses: { summary: { "gemini-pro": "..." } } }
+  // results: { summary: "...", _models: { summary: "gemini-pro"}, _responses: { summary: { "gemini-pro": "..." } }, _usage: { promptTokens, responseTokens } }
   
   const insert = db.prepare(`
-    INSERT INTO analysis (fileId, columnId, content, model, timestamp)
-    VALUES (@fileId, @columnId, @content, @model, @timestamp)
+    INSERT INTO analysis (fileId, columnId, content, model, timestamp, promptTokens, responseTokens)
+    VALUES (@fileId, @columnId, @content, @model, @timestamp, @promptTokens, @responseTokens)
     ON CONFLICT(fileId, columnId, model) DO UPDATE SET
       content = excluded.content,
-      timestamp = excluded.timestamp
+      timestamp = excluded.timestamp,
+      promptTokens = analysis.promptTokens + excluded.promptTokens,
+      responseTokens = analysis.responseTokens + excluded.responseTokens
   `);
 
   const timestamp = new Date().toISOString();
+  const usage = results._usage || { promptTokens: 0, responseTokens: 0 };
+  const models = results._models || {};
+  let tokensCharged = false;
   
   const transaction = db.transaction(() => {
-    // 1. Save Metadata if present (it's usually top-level)
+    // 1. Save Metadata if present
     if (results.metadata) {
         insert.run({
             fileId,
             columnId: 'metadata',
             content: JSON.stringify(results.metadata),
-            model: 'system',
-            timestamp
+            model: models['metadata'] || 'system',
+            timestamp,
+            promptTokens: usage.promptTokens,
+            responseTokens: usage.responseTokens
         });
+        tokensCharged = true;
     }
 
     // 2. Save Responses
-    // If _responses exists, it's the source of truth for ALL variations.
     if (results._responses) {
         for (const [colId, modelMap] of Object.entries(results._responses)) {
             for (const [modelId, content] of Object.entries(modelMap)) {
                 let contentToSave = content;
                 if (typeof content === 'object') contentToSave = JSON.stringify(content);
                 
+                const pTokens = !tokensCharged ? usage.promptTokens : 0;
+                const rTokens = !tokensCharged ? usage.responseTokens : 0;
+                if (!tokensCharged && (usage.promptTokens > 0)) tokensCharged = true;
+
                 insert.run({
                     fileId,
                     columnId: colId,
                     content: contentToSave,
                     model: modelId,
-                    timestamp
+                    timestamp,
+                    promptTokens: pTokens,
+                    responseTokens: rTokens
                 });
             }
         }
     } else {
-        // Fallback: If no _responses structure (legacy or simple update), save top-level keys
-        // Note: This might default to 'unknown' model if not specified
+        // Fallback
         const models = results._models || {};
         for (const [key, value] of Object.entries(results)) {
-             if (key === '_models' || key === '_responses' || key === 'metadata') continue;
+             if (key === '_models' || key === '_responses' || key === 'metadata' || key === '_usage') continue;
              
              let contentToSave = value;
              if (typeof value === 'object') contentToSave = JSON.stringify(value);
+
+             const pTokens = !tokensCharged ? usage.promptTokens : 0;
+             const rTokens = !tokensCharged ? usage.responseTokens : 0;
+             if (!tokensCharged && (usage.promptTokens > 0)) tokensCharged = true;
 
              insert.run({
                  fileId,
                  columnId: key,
                  content: contentToSave,
                  model: models[key] || 'default',
-                 timestamp
+                 timestamp,
+                 promptTokens: pTokens,
+                 responseTokens: rTokens
              });
         }
     }
@@ -394,6 +434,17 @@ function clearDatabase() {
   return true;
 }
 
+function getUsageStats() {
+    return db.prepare(`
+        SELECT 
+            model, 
+            SUM(promptTokens) as totalPrompt, 
+            SUM(responseTokens) as totalResponse 
+        FROM analysis 
+        GROUP BY model
+    `).all();
+}
+
 // --- SEARCH ---
 function searchFiles(query) {
     const likeQuery = `%${query}%`;
@@ -428,5 +479,6 @@ module.exports = {
   saveCustomColumn,
   deleteCustomColumn,
   clearDatabase,
+  getUsageStats,
   searchFiles
 };

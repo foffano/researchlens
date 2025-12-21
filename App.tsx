@@ -541,12 +541,27 @@ const App: React.FC = () => {
               let finalAnalysis = result;
 
               if (merge && f.analysis) {
-                  // Preserve existing analysis and merge ONLY the requested columns
                   finalAnalysis = { ...f.analysis };
                   
-                  // Initialize _models and _responses if they don't exist
                   if (!finalAnalysis._models) finalAnalysis._models = {};
                   if (!finalAnalysis._responses) finalAnalysis._responses = {};
+
+                  // Accumulate Usage Tokens & Cost
+                  if (result._usage) {
+                      const prevUsage = finalAnalysis._usage || { promptTokens: 0, responseTokens: 0, estimatedCost: 0 };
+                      
+                      // Calculate new cost
+                      const isPro = modelToUse.includes('pro');
+                      const inputRate = isPro ? 1.25 : 0.10;
+                      const outputRate = isPro ? 5.00 : 0.40;
+                      const newCost = (result._usage.promptTokens / 1000000 * inputRate) + (result._usage.responseTokens / 1000000 * outputRate);
+
+                      finalAnalysis._usage = {
+                          promptTokens: prevUsage.promptTokens + result._usage.promptTokens,
+                          responseTokens: prevUsage.responseTokens + result._usage.responseTokens,
+                          estimatedCost: (prevUsage.estimatedCost || 0) + newCost
+                      };
+                  }
 
                   columnsToAnalyze.forEach(col => {
                       // Only update if Gemini returned data for this column
@@ -567,6 +582,20 @@ const App: React.FC = () => {
               } else {
                   // For a fresh analysis, also populate _responses
                   if (!finalAnalysis._responses) finalAnalysis._responses = {};
+                  
+                  // Calculate initial cost
+                  if (result._usage) {
+                      const isPro = modelToUse.includes('pro');
+                      const inputRate = isPro ? 1.25 : 0.10;
+                      const outputRate = isPro ? 5.00 : 0.40;
+                      const initialCost = (result._usage.promptTokens / 1000000 * inputRate) + (result._usage.responseTokens / 1000000 * outputRate);
+                      
+                      finalAnalysis._usage = {
+                          ...result._usage,
+                          estimatedCost: initialCost
+                      };
+                  }
+
                   columnsToAnalyze.forEach(col => {
                       if (result[col.id] !== undefined) {
                            const usedModel = result._models?.[col.id] || modelToUse;
@@ -845,6 +874,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
       <Sidebar 
+        files={files}
         folders={folders}
         selectedFolderId={selectedFolderId}
         onSelectFolder={setSelectedFolderId}

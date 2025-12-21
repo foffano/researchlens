@@ -121,6 +121,13 @@ export const analyzePdf = async (
 
     const result = JSON.parse(text) as AnalysisResult;
     
+    // Inject Usage Metadata
+    const usage = response.usageMetadata;
+    result._usage = {
+        promptTokens: usage?.promptTokenCount || 0,
+        responseTokens: usage?.candidatesTokenCount || 0
+    };
+
     // Inject Model Metadata (Watermark)
     result._models = {};
     

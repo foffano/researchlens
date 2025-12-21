@@ -7,9 +7,10 @@ import {
   Trash2,
   PanelLeftClose
 } from 'lucide-react';
-import { Folder } from '../types';
+import { Folder, FileEntry } from '../types';
 
 interface SidebarProps {
+  files: FileEntry[];
   folders: Folder[];
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
@@ -21,6 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
+  files,
   folders, 
   selectedFolderId, 
   onSelectFolder, 
@@ -32,7 +34,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [usageStats, setUsageStats] = useState<{ model: string; totalPrompt: number; totalResponse: number }[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch usage stats
+  useEffect(() => {
+    const fetchUsage = async () => {
+        if (window.electron?.getUsageStats) {
+            const stats = await window.electron.getUsageStats();
+            setUsageStats(stats);
+        }
+    };
+    fetchUsage();
+    // Refresh stats when files change (approximation)
+    const interval = setInterval(fetchUsage, 5000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  const globalTokens = usageStats.reduce((acc, s) => acc + s.totalPrompt + s.totalResponse, 0);
+  
+  // Selection Stats
+  const selectionFiles = selectedFolderId 
+    ? files.filter(f => f.folderId === selectedFolderId)
+    : files;
+  
+  const selectionTokens = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.promptTokens || 0) + (f.analysis?._usage?.responseTokens || 0), 0);
+  const selectionCost = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.estimatedCost || 0), 0);
 
   // Focus input when creation mode starts
   useEffect(() => {
@@ -177,15 +204,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            {/* Settings Button (Bottom) */}
-            <div className="px-4 mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
-              <button 
-                onClick={onOpenSettings}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md transition-colors"
-              >
-                <Settings size={18} />
-                Settings
-              </button>
+            <div className="px-4 space-y-4">
+                {/* Cost Monitor */}
+                {globalTokens > 0 && (
+                    <div className="p-3 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg space-y-2">
+                        <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Library Total</span>
+                                <span className="text-[10px] font-mono font-bold text-orange-700 dark:text-orange-300">
+                                    ${(usageStats.reduce((acc, s) => {
+                                        const isPro = s.model.includes('pro');
+                                        return acc + (s.totalPrompt / 1000000 * (isPro ? 1.25 : 0.10)) + (s.totalResponse / 1000000 * (isPro ? 5.00 : 0.40));
+                                    }, 0)).toFixed(4)}
+                                </span>
+                            </div>
+                            <p className="text-[9px] text-orange-500/70 dark:text-orange-400/50">
+                                {globalTokens.toLocaleString()} total tokens
+                            </p>
+                        </div>
+
+                        {selectedFolderId && selectionTokens > 0 && (
+                            <div className="pt-2 border-t border-orange-100/50 dark:border-orange-900/20">
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate max-w-[80px]">Folder Cost</span>
+                                    <span className="text-[10px] font-mono text-gray-600 dark:text-gray-300">
+                                        ${selectionCost.toFixed(4)}
+                                    </span>
+                                </div>
+                                <p className="text-[9px] text-gray-400 dark:text-gray-500">
+                                    {selectionTokens.toLocaleString()} tokens
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Settings Button */}
+                <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                  <button 
+                    onClick={onOpenSettings}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 rounded-md transition-colors"
+                  >
+                    <Settings size={18} />
+                    Settings
+                  </button>
+                </div>
             </div>
           </div>
           
