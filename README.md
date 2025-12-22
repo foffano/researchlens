@@ -5,7 +5,7 @@
 ![ResearchLens](tela.png)
 
 ## Abstract
-ResearchLens is a desktop application designed to address the critical challenge of information overload in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first, privacy-preserving environment for researchers to process literature at scale, ensuring high fidelity in bibliographic metadata extraction and semantic analysis without relying on traditional, error-prone OCR pipelines.
+ResearchLens is a desktop application designed to address the challenge of information volume in academic research. By leveraging the multimodal capabilities of Large Language Models (LLMs), specifically Google's Gemini architecture, it automates the extraction, analysis, and synthesis of data from scientific PDFs. The software provides a local-first environment for researchers to process literature, aiming to facilitate bibliographic metadata extraction and semantic analysis efficiently.
 
 ---
 
@@ -14,10 +14,10 @@ ResearchLens is a desktop application designed to address the critical challenge
 In the modern scientific landscape, researchers are inundated with an ever-growing volume of literature. Traditional methods of manual review are time-consuming and prone to human error. Existing automated tools often rely on brittle text extraction methods that fail to capture the nuance of complex document layouts, tables, and non-linear text.
 
 **ResearchLens** was developed to:
-1.  **Accelerate Literature Review**: Drastically reduce the time required to screen and analyze papers.
-2.  **Enhance Data Accuracy**: Utilize multimodal AI to "see" documents as humans do, preserving context often lost in plain-text conversion.
+1.  **Assist Literature Review**: Reduce the time required to screen and analyze papers.
+2.  **Enhance Data Accuracy**: Utilize multimodal AI to process documents including visual elements, aiming to preserve context.
 3.  **Facilitate Structured Synthesis**: Convert unstructured PDF content into structured, exportable data (JSON/CSV) suitable for bibliometric analysis and systematic reviews.
-4.  **Ensure Data Sovereignty**: Operate within a local environment where research data remains on the user's machine, addressing privacy concerns associated with cloud-only platforms.
+4.  **Local Data Processing**: Operate within a local environment where research data remains on the user's machine.
 
 ---
 
@@ -100,19 +100,19 @@ The software automatically performs a two-phase analysis on every uploaded docum
 
 ## 4. Scientific Methodology & System Architecture
 
-ResearchLens AI employs a novel architecture designed to maximize trust and reproducibility in AI-assisted research.
+ResearchLens AI employs an architecture designed to enhance transparency and reproducibility in AI-assisted research.
 
 ### Direct Multimodal Processing
-Unlike systems that use OCR (Optical Character Recognition) to convert PDFs to error-prone text, ResearchLens AI transmits the **raw PDF binary** directly to the multimodal context window of the underlying Large Language Model.
-*   **Benefit**: The model perceives layout, charts, footnotes, and sidebars essentially as a human reader would, significantly reducing hallucination rates caused by broken text streams.
+Unlike systems that rely solely on OCR (Optical Character Recognition) to convert PDFs to text, ResearchLens AI transmits the **PDF binary** directly to the multimodal context window of the underlying Large Language Model.
+*   **Rationale**: The model processes layout, charts, footnotes, and sidebars, aiming to reduce errors associated with lost formatting in plain-text conversion.
 
 ### Structured Extraction Protocol
-To ensure scientific rigor, the system uses a **Dual-Phase Dynamic Prompting** strategy enforced by a strict JSON schema:
-*   **Schema Enforcement**: The output is constrained to a rigorous structure. This guarantees that fields like "Results" or "Methodology" are returned as consistent data types, eliminating unstructured "chatty" responses common in general-purpose chatbots.
+To support scientific rigor, the system uses a **Dual-Phase Dynamic Prompting** strategy enforced by a JSON schema:
+*   **Schema Enforcement**: The output is constrained to a defined structure. This helps ensure that fields like "Results" or "Methodology" are returned as consistent data types, minimizing unstructured responses.
 
 ### Data Integrity
 *   **Atomic Analysis**: Each document analysis is an independent transaction.
-*   **Traceability**: Results are watermarked with the specific model version used, allowing researchers to report exactly which AI model assisted in their review.
+*   **Traceability**: Results are watermarked with the specific model version used, allowing researchers to report which AI model assisted in their review.
 
 ---
 
