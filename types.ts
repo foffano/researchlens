@@ -112,10 +112,12 @@ declare global {
       importDatasets: (files: { name: string; path: string }[]) => Promise<Dataset[]>;
       getDatasetRows: (datasetId: string) => Promise<DatasetRow[]>;
       updateDatasetRow: (id: string, data: any) => Promise<void>;
+      renameDataset: (id: string, name: string) => Promise<void>;
       deleteDataset: (id: string) => Promise<void>;
 
       // Folder Ops
       addFolder: (name: string) => Promise<Folder>;
+      renameFolder: (id: string, name: string) => Promise<void>;
       deleteFolder: (id: string) => Promise<void>;
       deleteFolderAndFiles: (id: string) => Promise<void>;
       

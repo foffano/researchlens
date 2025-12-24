@@ -4,6 +4,8 @@ const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./database.cjs');
 const XLSX = require('xlsx');
+const chardet = require('chardet');
+const iconv = require('iconv-lite');
 
 // Initialize DB early
 db.initDatabase();
@@ -110,9 +112,61 @@ ipcMain.handle('import-dataset', async (event, files) => {
         try {
             await fs.copy(file.path, storagePath);
             
-            // Parse Dataset
-            const buffer = await fs.readFile(storagePath);
-            const workbook = XLSX.read(buffer, { type: 'buffer' });
+            // Handle Encoding
+            let buffer = await fs.readFile(storagePath);
+            let workbook;
+
+            if (ext.toLowerCase() === '.csv') {
+                // Strategy: Convert everything to a generic JS string first, then parse.
+                
+                let contentString = '';
+                
+                // 1. Try treating as UTF-8 first
+                const utf8Str = buffer.toString('utf-8');
+                const looksLikeValidUtf8 = !utf8Str.includes('\ufffd');
+
+                if (looksLikeValidUtf8) {
+                     contentString = utf8Str;
+                } else {
+                     // 2. Fallback: Detect encoding
+                     const detected = chardet.detect(buffer);
+                     try {
+                         contentString = iconv.decode(buffer, detected || 'windows-1252');
+                     } catch (e) {
+                         contentString = utf8Str;
+                     }
+                }
+
+                // 3. MOJIBAKE CHECK (The "GonÃ§alves" Fix)
+                // If the string contains patterns typical of UTF-8 read as Latin1, repair it.
+                // Common artifacts: Ã§ (ç), Ã£ (ã), Ã© (é), Ã³ (ó), Ã­ (í)
+                // We check for 'Ã' followed by specific chars.
+                const mojibakePatterns = ['Ã§', 'Ã£', 'Ã©', 'Ã³', 'Ã­', 'Ãª', 'Ã¡', 'Ãº'];
+                if (mojibakePatterns.some(p => contentString.includes(p))) {
+                    console.log(`File ${file.name} appears to have Mojibake (UTF-8 read as Latin1). Attempting repair...`);
+                    try {
+                        // "Repair" by reversing the damage: 
+                        // Treat the current characters as single bytes (binary/latin1) to get back the original UTF-8 bytes
+                        const rawBuffer = Buffer.from(contentString, 'binary');
+                        const repaired = iconv.decode(rawBuffer, 'utf-8');
+                        
+                        // Only accept repair if it didn't create NEW errors and actually removed the artifacts
+                        if (!repaired.includes('\ufffd') && !mojibakePatterns.some(p => repaired.includes(p))) {
+                            console.log('Mojibake repair successful.');
+                            contentString = repaired;
+                        }
+                    } catch (e) {
+                        console.warn('Mojibake repair failed, keeping original.', e);
+                    }
+                }
+
+                // Parse string content directly
+                workbook = XLSX.read(contentString, { type: 'string' });
+
+            } else {
+                // For Excel (.xlsx, .xls), binary parsing is usually robust
+                workbook = XLSX.read(buffer, { type: 'buffer' });
+            }
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             
@@ -212,9 +266,19 @@ ipcMain.handle('add-folder', (event, name) => {
   return { id, name };
 });
 
+ipcMain.handle('rename-folder', (event, { id, name }) => {
+  db.renameFolder(id, name);
+  return { success: true };
+});
+
 ipcMain.handle('delete-folder', (event, id) => {
   db.deleteFolder(id);
   return { success: true };
+});
+
+ipcMain.handle('rename-dataset', (event, { id, name }) => {
+    db.renameDataset(id, name);
+    return { success: true };
 });
 
 ipcMain.handle('delete-folder-and-files', (event, id) => {

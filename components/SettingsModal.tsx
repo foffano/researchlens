@@ -7,6 +7,7 @@ export interface AppSettings {
   modelId: string;
   fontSize: 'small' | 'medium' | 'large';
   theme: 'light' | 'dark' | 'system';
+  sidebarOrder?: string[];
 }
 
 interface SettingsModalProps {

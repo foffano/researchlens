@@ -275,6 +275,27 @@ const App: React.FC = () => {
     load();
   }, []);
 
+  const handleSidebarReorder = (newOrder: string[]) => {
+      const newSettings = { ...settings, sidebarOrder: newOrder };
+      setSettings(newSettings);
+      // Persist immediately
+      window.electron?.saveSettings({ sidebarOrder: newOrder });
+  };
+
+  const handleRenameFolder = (id: string, name: string) => {
+      if (window.electron?.renameFolder) {
+          window.electron.renameFolder(id, name);
+          setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+      }
+  };
+
+  const handleRenameDataset = (id: string, name: string) => {
+      if (window.electron?.renameDataset) {
+          window.electron.renameDataset(id, name);
+          setDatasets(prev => prev.map(d => d.id === id ? { ...d, name } : d));
+      }
+  };
+
   // 1.5 Sync Root Columns
   useEffect(() => {
       setColumnConfigs(prev => {
@@ -1168,6 +1189,7 @@ const App: React.FC = () => {
         datasets={datasets}
         selectedFolderId={selectedFolderId}
         selectedDatasetId={selectedDatasetId}
+        sidebarOrder={settings.sidebarOrder}
         onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedDatasetId(null); }}
         onSelectDataset={handleSelectDataset}
         onCreateFolder={handleCreateFolder}
@@ -1175,6 +1197,9 @@ const App: React.FC = () => {
         onDeleteDataset={handleDeleteDataset}
         onImportDataset={() => datasetInputRef.current?.click()}
         onOpenSettings={() => setShowSettings(true)}
+        onReorder={handleSidebarReorder}
+        onRenameFolder={handleRenameFolder}
+        onRenameDataset={handleRenameDataset}
         isOpen={isLeftSidebarOpen}
         onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
       />

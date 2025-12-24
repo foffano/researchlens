@@ -20,7 +20,9 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^1.33.0",
     "better-sqlite3": "^12.5.0",
+    "chardet": "^2.1.1",
     "fs-extra": "^11.3.3",
+    "iconv-lite": "^0.7.1",
     "lucide-react": "^0.561.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -28,14 +30,18 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.14.0",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.23",
     "concurrently": "^9.2.1",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
     "electron-packager": "^17.1.2",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "wait-on": "^9.0.3"

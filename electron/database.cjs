@@ -319,6 +319,11 @@ function addDataset(dataset) {
     stmt.run(data);
 }
 
+function renameDataset(id, name) {
+    const stmt = db.prepare('UPDATE datasets SET name = ? WHERE id = ?');
+    stmt.run(name, id);
+}
+
 function updateDatasetRow(id, data) {
     // data: object (will be stringified)
     const stmt = db.prepare('UPDATE dataset_rows SET data = ? WHERE id = ?');
@@ -420,6 +425,11 @@ function getFolders() {
 function addFolder(folder) {
   const stmt = db.prepare('INSERT INTO folders (id, name) VALUES (@id, @name)');
   stmt.run(folder);
+}
+
+function renameFolder(id, name) {
+  const stmt = db.prepare('UPDATE folders SET name = ? WHERE id = ?');
+  stmt.run(name, id);
 }
 
 function deleteFolder(id) {
@@ -645,6 +655,7 @@ module.exports = {
   deleteFile,
   getFolders,
   addFolder,
+  renameFolder,
   deleteFolder,
   deleteFolderAndFiles,
   saveAnalysis,
@@ -660,6 +671,7 @@ module.exports = {
   searchFiles,
   getDatasets,
   addDataset,
+  renameDataset,
   deleteDataset,
   addDatasetRows,
   getDatasetRows,
