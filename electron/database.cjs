@@ -33,6 +33,23 @@ function initDatabase() {
       FOREIGN KEY(folderId) REFERENCES folders(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS datasets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      storagePath TEXT,
+      uploadDate TEXT,
+      rowCount INTEGER,
+      headers TEXT -- JSON array of column headers
+    );
+
+    CREATE TABLE IF NOT EXISTS dataset_rows (
+      id TEXT PRIMARY KEY,
+      datasetId TEXT NOT NULL,
+      rowIndex INTEGER,
+      data TEXT, -- JSON content of the row
+      FOREIGN KEY(datasetId) REFERENCES datasets(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -50,58 +67,51 @@ function initDatabase() {
     );
   `);
 
+  // --- MIGRATION: Check Datasets Table for 'headers' column ---
+  try {
+      const dsCols = db.pragma('table_info(datasets)').map(c => c.name);
+      if (!dsCols.includes('headers')) {
+          console.log("Migrating 'datasets' table: Adding 'headers' column...");
+          db.exec("ALTER TABLE datasets ADD COLUMN headers TEXT");
+      }
+  } catch (e) {
+      console.error("Migration error checking datasets table:", e);
+  }
+
   // --- MIGRATION: Check Analysis Table Schema ---
-  // We need Primary Key to be (fileId, columnId, model) to support multiple responses.
-  // Old schema was (fileId, columnId).
+  // We need Primary Key to be (fileId, columnId, model).
+  // We also need to REMOVE the FK constraint on fileId so it can point to dataset_rows.
   
   const tableInfo = db.pragma('table_info(analysis)');
-  // Check if 'analysis' table exists
+  let needsMigration = false;
+  let migrationReason = "";
+
   if (tableInfo.length > 0) {
-      // Check number of PK columns. If < 3, we need to migrate.
+      // 1. Check PK
       const pkCount = tableInfo.filter(col => col.pk > 0).length;
-      
       if (pkCount < 3) {
-          console.log("Migrating 'analysis' table to support multiple models...");
-          db.transaction(() => {
-              // 1. Rename old table
-              db.exec("ALTER TABLE analysis RENAME TO analysis_old");
-              
-              // 2. Create new table
-              db.exec(`
-                CREATE TABLE analysis (
-                  fileId TEXT,
-                  columnId TEXT,
-                  content TEXT,
-                  model TEXT,
-                  timestamp TEXT,
-                  promptTokens INTEGER DEFAULT 0,
-                  responseTokens INTEGER DEFAULT 0,
-                  PRIMARY KEY (fileId, columnId, model),
-                  FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
-                )
-              `);
-              
-              // 3. Copy data
-              db.exec(`
-                INSERT OR REPLACE INTO analysis (fileId, columnId, content, model, timestamp)
-                SELECT fileId, columnId, content, model, timestamp FROM analysis_old
-              `);
-              
-              // 4. Drop old table
-              db.exec("DROP TABLE analysis_old");
-          })();
-          console.log("Migration complete.");
-      } else {
-          // Check for missing columns (token columns) in existing table and add them if missing
-          const cols = db.pragma('table_info(analysis)').map(c => c.name);
-          if (!cols.includes('promptTokens')) {
-              console.log("Adding token columns to analysis table...");
-              db.exec("ALTER TABLE analysis ADD COLUMN promptTokens INTEGER DEFAULT 0");
-              db.exec("ALTER TABLE analysis ADD COLUMN responseTokens INTEGER DEFAULT 0");
-          }
+          needsMigration = true;
+          migrationReason = "PK Update";
+      }
+
+      // 2. Check FK (We can't easily query FK existence in simple PRAGMA, but we can check SQL)
+      // We'll assume if we haven't run THIS migration yet, we should.
+      // We can check if 'promptTokens' exists as a proxy for "recent version", 
+      // but for the FK removal specifically, let's just force migration if we suspect it's the old one.
+      // Actually, simplest way is to rename and recreate if we want to be sure.
+      
+      // Let's rely on a specific column or just re-run migration if we want to ensure FK is gone.
+      // But re-running on every start is bad.
+      // Let's check if 'targetId' column exists? No, we keep 'fileId' name to avoid massive code refactor, just change semantics.
+      
+      // We can check `sqlite_master` for the table definition to see if "REFERENCES files" is present.
+      const sqlDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='analysis'").get();
+      if (sqlDef && sqlDef.sql.includes('REFERENCES files')) {
+          needsMigration = true;
+          migrationReason = "Remove FK";
       }
   } else {
-      // Create fresh if doesn't exist
+      // Create fresh
       db.exec(`
         CREATE TABLE IF NOT EXISTS analysis (
           fileId TEXT,
@@ -111,12 +121,54 @@ function initDatabase() {
           timestamp TEXT,
           promptTokens INTEGER DEFAULT 0,
           responseTokens INTEGER DEFAULT 0,
-          PRIMARY KEY (fileId, columnId, model),
-          FOREIGN KEY(fileId) REFERENCES files(id) ON DELETE CASCADE
+          PRIMARY KEY (fileId, columnId, model)
         )
       `);
   }
-  
+
+  if (needsMigration) {
+      console.log(`Migrating 'analysis' table (${migrationReason})...`);
+      db.transaction(() => {
+          // 1. Rename old table
+          db.exec("ALTER TABLE analysis RENAME TO analysis_old");
+          
+          // 2. Create new table WITHOUT FK to files
+          db.exec(`
+            CREATE TABLE analysis (
+              fileId TEXT,
+              columnId TEXT,
+              content TEXT,
+              model TEXT,
+              timestamp TEXT,
+              promptTokens INTEGER DEFAULT 0,
+              responseTokens INTEGER DEFAULT 0,
+              PRIMARY KEY (fileId, columnId, model)
+            )
+          `);
+          
+          // 3. Copy data
+          // Handle potential missing columns in source if coming from very old version
+          const oldCols = db.pragma('table_info(analysis_old)').map(c => c.name);
+          const hasTokens = oldCols.includes('promptTokens');
+          
+          if (hasTokens) {
+             db.exec(`
+                INSERT OR IGNORE INTO analysis (fileId, columnId, content, model, timestamp, promptTokens, responseTokens)
+                SELECT fileId, columnId, content, model, timestamp, promptTokens, responseTokens FROM analysis_old
+             `);
+          } else {
+             db.exec(`
+                INSERT OR IGNORE INTO analysis (fileId, columnId, content, model, timestamp)
+                SELECT fileId, columnId, content, model, timestamp FROM analysis_old
+             `);
+          }
+          
+          // 4. Drop old table
+          db.exec("DROP TABLE analysis_old");
+      })();
+      console.log("Migration complete.");
+  }
+
   console.log('Database initialized at:', dbPath);
 }
 
@@ -130,8 +182,19 @@ function getAllFiles() {
   // 1. Get all basic file info
   const files = db.prepare('SELECT * FROM files').all();
   
-  // 2. Get ALL analysis rows
-  const allAnalysis = db.prepare('SELECT * FROM analysis ORDER BY timestamp ASC').all();
+  // 2. Get ALL analysis rows (This might get huge if we have thousands of dataset rows, 
+  // so we should probably optimize to only fetch analysis for FILES here, or filter by ID set.
+  // But for now, assuming dataset row IDs don't clash with file IDs and we filter later is risky for perf.
+  // BETTER: Join or filter.)
+  
+  // Actually, 'getAllFiles' is for the PDF view. We should only fetch analysis for these files.
+  // SQLite `IN` clause with many IDs is okay.
+  
+  if (files.length === 0) return [];
+
+  const fileIds = files.map(f => f.id);
+  const placeholders = fileIds.map(() => '?').join(',');
+  const allAnalysis = db.prepare(`SELECT * FROM analysis WHERE fileId IN (${placeholders}) ORDER BY timestamp ASC`).all(...fileIds);
 
   // 3. Map analysis to files
   const analysisMap = {};
@@ -219,8 +282,11 @@ function updateFileFolder(fileId, folderId) {
 
 function deleteFile(id) {
   const file = db.prepare('SELECT storagePath FROM files WHERE id = ?').get(id);
-  const deleteStmt = db.prepare('DELETE FROM files WHERE id = ?');
-  deleteStmt.run(id);
+  const transaction = db.transaction(() => {
+      db.prepare('DELETE FROM files WHERE id = ?').run(id);
+      db.prepare('DELETE FROM analysis WHERE fileId = ?').run(id); // Manual cascade since we removed FK
+  });
+  transaction();
 
   if (file && file.storagePath) {
     try {
@@ -232,6 +298,118 @@ function deleteFile(id) {
     }
   }
 }
+
+// --- DATASET OPERATIONS ---
+
+function getDatasets() {
+    return db.prepare('SELECT * FROM datasets ORDER BY uploadDate DESC').all();
+}
+
+function addDataset(dataset) {
+    // dataset: { id, name, storagePath, uploadDate, rowCount, headers }
+    const stmt = db.prepare(`
+        INSERT INTO datasets (id, name, storagePath, uploadDate, rowCount, headers)
+        VALUES (@id, @name, @storagePath, @uploadDate, @rowCount, @headers)
+    `);
+    
+    // Ensure headers is stringified if array
+    const data = { ...dataset };
+    if (Array.isArray(data.headers)) data.headers = JSON.stringify(data.headers);
+    
+    stmt.run(data);
+}
+
+function updateDatasetRow(id, data) {
+    // data: object (will be stringified)
+    const stmt = db.prepare('UPDATE dataset_rows SET data = ? WHERE id = ?');
+    stmt.run(JSON.stringify(data), id);
+}
+
+function deleteDataset(id) {
+    const dataset = db.prepare('SELECT storagePath FROM datasets WHERE id = ?').get(id);
+    const transaction = db.transaction(() => {
+        // 1. Get all row IDs to delete analysis
+        const rows = db.prepare('SELECT id FROM dataset_rows WHERE datasetId = ?').all(id);
+        const rowIds = rows.map(r => r.id);
+        
+        // 2. Delete Analysis for these rows
+        if (rowIds.length > 0) {
+            const placeholders = rowIds.map(() => '?').join(',');
+            db.prepare(`DELETE FROM analysis WHERE fileId IN (${placeholders})`).run(...rowIds);
+        }
+
+        // 3. Delete Rows (Cascade handles this usually if enabled, but we do explicitly)
+        db.prepare('DELETE FROM dataset_rows WHERE datasetId = ?').run(id);
+        
+        // 4. Delete Dataset
+        db.prepare('DELETE FROM datasets WHERE id = ?').run(id);
+    });
+    transaction();
+    
+    // 5. Delete File
+    if (dataset && dataset.storagePath) {
+        try {
+            if (fs.existsSync(dataset.storagePath)) {
+                fs.unlinkSync(dataset.storagePath);
+            }
+        } catch (e) { console.error("Error deleting dataset file", e); }
+    }
+}
+
+function addDatasetRows(rows) {
+    // rows: array of { id, datasetId, rowIndex, data }
+    const insert = db.prepare(`
+        INSERT INTO dataset_rows (id, datasetId, rowIndex, data)
+        VALUES (@id, @datasetId, @rowIndex, @data)
+    `);
+    
+    const transaction = db.transaction((rows) => {
+        for (const row of rows) insert.run(row);
+    });
+    transaction(rows);
+}
+
+function getDatasetRows(datasetId) {
+    const rows = db.prepare('SELECT * FROM dataset_rows WHERE datasetId = ? ORDER BY rowIndex ASC').all(datasetId);
+    
+    // Fetch analysis for these rows
+    if (rows.length === 0) return [];
+    
+    const rowIds = rows.map(r => r.id);
+    const placeholders = rowIds.map(() => '?').join(',');
+    const allAnalysis = db.prepare(`SELECT * FROM analysis WHERE fileId IN (${placeholders})`).all(...rowIds);
+    
+    // Map analysis
+    const analysisMap = {};
+    allAnalysis.forEach(rec => {
+        if (!analysisMap[rec.fileId]) analysisMap[rec.fileId] = {};
+        // Simplified mapping for rows (we might not need full history/usage for every row in the immediate UI, but let's consistency)
+        // For rows, we just want the latest content for each column usually.
+        // But let's stick to the 'analysis' object structure used in frontend.
+        
+        if (!analysisMap[rec.fileId]._models) analysisMap[rec.fileId]._models = {};
+        
+        let content = rec.content;
+        try { if (content && (content.startsWith('{') || content.startsWith('['))) content = JSON.parse(content); } catch(e){}
+        
+        analysisMap[rec.fileId][rec.columnId] = content;
+        analysisMap[rec.fileId]._models[rec.columnId] = rec.model;
+    });
+    
+    return rows.map(row => {
+        let data = {};
+        try { data = JSON.parse(row.data); } catch(e) {}
+        
+        return {
+            id: row.id,
+            datasetId: row.datasetId,
+            rowIndex: row.rowIndex,
+            data: data,
+            analysis: analysisMap[row.id] || {}
+        };
+    });
+}
+
 
 // --- FOLDER OPERATIONS ---
 
@@ -479,5 +657,11 @@ module.exports = {
   deleteCustomColumn,
   clearDatabase,
   getUsageStats,
-  searchFiles
+  searchFiles,
+  getDatasets,
+  addDataset,
+  deleteDataset,
+  addDatasetRows,
+  getDatasetRows,
+  updateDatasetRow
 };

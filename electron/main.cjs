@@ -3,12 +3,15 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./database.cjs');
+const XLSX = require('xlsx');
 
 // Initialize DB early
 db.initDatabase();
 
 const PDF_STORAGE_DIR = path.join(app.getPath('userData'), 'pdfs');
+const DATASET_STORAGE_DIR = path.join(app.getPath('userData'), 'datasets');
 fs.ensureDirSync(PDF_STORAGE_DIR);
+fs.ensureDirSync(DATASET_STORAGE_DIR);
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -48,6 +51,7 @@ ipcMain.handle('get-initial-data', async () => {
   return {
     files: db.getAllFiles(),
     folders: db.getFolders(),
+    datasets: db.getDatasets(),
     settings: db.loadSettings(),
     columnConfigs: db.getColumnConfigs(),
     customColumns: db.getCustomColumns()
@@ -91,6 +95,92 @@ ipcMain.handle('upload-files', async (event, files) => {
     }
   }
   return results;
+});
+
+ipcMain.handle('import-dataset', async (event, files) => {
+    // files: array of { name, path }
+    const results = [];
+    
+    for (const file of files) {
+        const datasetId = uuidv4();
+        const ext = path.extname(file.name);
+        const storageName = `${datasetId}${ext}`;
+        const storagePath = path.join(DATASET_STORAGE_DIR, storageName);
+        
+        try {
+            await fs.copy(file.path, storagePath);
+            
+            // Parse Dataset
+            const buffer = await fs.readFile(storagePath);
+            const workbook = XLSX.read(buffer, { type: 'buffer' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // 1. Extract Headers explicitly (row 1)
+            const headerRow = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
+            const headers = headerRow.map(h => String(h)); // Ensure strings
+
+            // 2. Extract Data (forcing raw to avoid skipping empty keys, but sheet_to_json might still be sparse)
+            // Better: use raw: false to get formatted strings, but defval: "" to ensure keys exist? 
+            // sheet_to_json with 'header' option can map to specific keys, but we want dynamic.
+            // Best approach: Parse as array of arrays, then map to object using known headers.
+            
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            // Remove header row
+            rawRows.shift();
+            
+            const jsonData = rawRows.map(row => {
+                const obj = {};
+                headers.forEach((h, index) => {
+                    obj[h] = row[index] !== undefined ? row[index] : ""; // Default to empty string
+                });
+                return obj;
+            });
+            
+            // Create Dataset Entry
+            const datasetEntry = {
+                id: datasetId,
+                name: file.name,
+                storagePath: storagePath,
+                uploadDate: new Date().toISOString(),
+                rowCount: jsonData.length,
+                headers: JSON.stringify(headers)
+            };
+            
+            db.addDataset(datasetEntry);
+            
+            // Create Row Entries
+            const rowEntries = jsonData.map((row, index) => ({
+                id: uuidv4(),
+                datasetId: datasetId,
+                rowIndex: index,
+                data: JSON.stringify(row)
+            }));
+            
+            db.addDatasetRows(rowEntries);
+            
+            // Parse headers back for frontend
+            results.push({ ...datasetEntry, headers: headers });
+            
+        } catch (err) {
+            console.error('Failed to import dataset:', file.name, err);
+        }
+    }
+    return results;
+});
+
+ipcMain.handle('get-dataset-rows', (event, datasetId) => {
+    return db.getDatasetRows(datasetId);
+});
+
+ipcMain.handle('update-dataset-row', (event, { id, data }) => {
+    db.updateDatasetRow(id, data);
+    return { success: true };
+});
+
+ipcMain.handle('delete-dataset', (event, id) => {
+    db.deleteDataset(id);
+    return { success: true };
 });
 
 ipcMain.handle('delete-file', async (event, id) => {
@@ -171,6 +261,7 @@ ipcMain.handle('clear-all-data', async () => {
   try {
     db.clearDatabase();
     await fs.emptyDir(PDF_STORAGE_DIR); // Wipes all PDFs from disk
+    await fs.emptyDir(DATASET_STORAGE_DIR);
     return { success: true };
   } catch (error) {
     console.error('Failed to clear data:', error);

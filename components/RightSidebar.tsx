@@ -9,6 +9,7 @@ interface RightSidebarProps {
   onDeleteCustomColumn?: (id: string) => void;
   isOpen: boolean;
   onToggle: () => void;
+  isDatasetView?: boolean;
 }
 
 // Only show columns that are actually implemented in the Gemini service/Types
@@ -20,24 +21,33 @@ const SUGGESTIONS: SuggestedColumn[] = [
   { id: 'problemStatement', label: 'Problem Statement', key: 'problemStatement' },
 ];
 
-export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns, savedCustomColumns = [], onDeleteCustomColumn, isOpen, onToggle }) => {
+export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeColumns, savedCustomColumns = [], onDeleteCustomColumn, isOpen, onToggle, isDatasetView = false }) => {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
+  const [isManual, setIsManual] = useState(false);
 
   const handleAddCustom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customName.trim() || !customPrompt.trim()) return;
+    // Prompt required only if not manual
+    if (!customName.trim() || (!isManual && !customPrompt.trim())) return;
 
     // Create a key based on name, simplified
+    // For manual columns, we might want a different prefix or just 'custom_' is fine as App.tsx handles it based on prompt existence
     const key = 'custom_' + customName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
     
-    onAddColumn(key, customPrompt);
+    // Pass undefined prompt if manual
+    onAddColumn(key, isManual ? undefined : customPrompt);
     
     // Reset
     setCustomName('');
     setCustomPrompt('');
+    setIsManual(false);
     setIsCustomMode(false);
+  };
+
+  const insertColumnRef = (label: string) => {
+      setCustomPrompt(prev => prev + ` {{${label}}} `);
   };
 
   return (
@@ -70,28 +80,32 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
           </div>
 
           <div className="p-4 overflow-y-auto flex-1">
-            {/* Standard Suggestions */}
-            <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Suggested</h3>
-            <div className="space-y-2 mb-8">
-              {SUGGESTIONS.map((col) => {
-                const isActive = activeColumns.find(c => c.id === col.key && c.visible);
-                return (
-                  <button
-                    key={col.id}
-                    onClick={() => onAddColumn(col.key)}
-                    disabled={!!isActive}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
-                      isActive 
-                        ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed bg-gray-50 dark:bg-gray-800' 
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-400 border border-transparent hover:border-orange-100 dark:hover:border-orange-800'
-                    }`}
-                  >
-                    <Plus size={14} />
-                    {col.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Standard Suggestions - Hidden in Dataset View */}
+            {!isDatasetView && (
+                <>
+                    <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Suggested</h3>
+                    <div className="space-y-2 mb-8">
+                    {SUGGESTIONS.map((col) => {
+                        const isActive = activeColumns.find(c => c.id === col.key && c.visible);
+                        return (
+                        <button
+                            key={col.id}
+                            onClick={() => onAddColumn(col.key)}
+                            disabled={!!isActive}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md transition-colors ${
+                            isActive 
+                                ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed bg-gray-50 dark:bg-gray-800' 
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-700 dark:hover:text-orange-400 border border-transparent hover:border-orange-100 dark:hover:border-orange-800'
+                            }`}
+                        >
+                            <Plus size={14} />
+                            {col.label}
+                        </button>
+                        );
+                    })}
+                    </div>
+                </>
+            )}
 
             {/* Saved Custom Columns */}
             {savedCustomColumns.length > 0 && (
@@ -100,11 +114,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                 <div className="space-y-2">
                   {savedCustomColumns.map((col) => {
                     const isActive = activeColumns.find(c => c.id === col.id && c.visible);
-                    // Format label: replace underscores with spaces and ensure capitalization
-                    const displayLabel = col.label.replace(/_/g, ' ')
-                                                .split(' ')
-                                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                                .join(' ');
                     
                     return (
                       <div key={col.id} className="group flex items-center gap-1">
@@ -118,7 +127,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                           }`}
                         >
                           <Plus size={14} />
-                      {displayLabel}
+                      {col.label}
                     </button>
                     {onDeleteCustomColumn && (
                         <button 
@@ -146,35 +155,76 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
            </div>
 
            {!isCustomMode ? (
-              <button 
-                onClick={() => setIsCustomMode(true)}
-                className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-orange-300 dark:hover:border-orange-700 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all flex items-center justify-center gap-2"
-              >
-                <Sparkles size={16} />
-                Create New Column
-              </button>
+              <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => { setIsCustomMode(true); setIsManual(false); }}
+                    className="w-full py-2.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg text-sm text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/20 transition-all flex items-center justify-center gap-2 font-medium"
+                  >
+                    <Sparkles size={16} />
+                    AI Analysis Column
+                  </button>
+                  <button 
+                    onClick={() => { setIsCustomMode(true); setIsManual(true); }}
+                    className="w-full py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all flex items-center justify-center gap-2 font-medium"
+                  >
+                    <Plus size={16} />
+                    Manual Data Column
+                  </button>
+              </div>
            ) : (
              <form onSubmit={handleAddCustom} className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                        {isManual ? 'New Data Column' : 'New AI Column'}
+                    </span>
+                    <button type="button" onClick={() => setIsCustomMode(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={14} />
+                    </button>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Column Name</label>
                   <input 
                     type="text" 
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
-                    placeholder="e.g. Funding Source"
+                    placeholder={isManual ? "e.g. Notes" : "e.g. Sentiment"}
                     className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
                     autoFocus
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Instruction (Prompt)</label>
-                  <textarea 
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="Extract the funding agencies mentioned..."
-                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 min-h-[80px] dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
-                  />
-                </div>
+                
+                {!isManual && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Instruction (Prompt)</label>
+                      <textarea 
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Extract the funding agencies mentioned..."
+                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 min-h-[80px] dark:bg-gray-700 dark:text-white dark:placeholder-gray-500"
+                      />
+                      
+                      {/* Column Reference Badges */}
+                      {isDatasetView && activeColumns.length > 0 && (
+                          <div className="mt-2">
+                              <p className="text-[10px] text-gray-400 mb-1">Click to reference column:</p>
+                              <div className="flex flex-wrap gap-1">
+                                  {activeColumns.filter(c => c.visible && c.id !== 'fileInfo').map(col => (
+                                      <button
+                                          key={col.id}
+                                          type="button"
+                                          onClick={() => insertColumnRef(col.label)}
+                                          className="text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-100 dark:border-blue-800 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                                      >
+                                          {col.label}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                    </div>
+                )}
+
                 <div className="flex gap-2 pt-1">
                   <button 
                     type="button" 
@@ -185,10 +235,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ onAddColumn, activeC
                   </button>
                   <button 
                     type="submit" 
-                    disabled={!customName || !customPrompt}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded disabled:opacity-50"
+                    disabled={!customName || (!isManual && !customPrompt)}
+                    className={`flex-1 px-3 py-1.5 text-xs font-medium text-white rounded disabled:opacity-50 ${isManual ? 'bg-gray-600 hover:bg-gray-700' : 'bg-orange-600 hover:bg-orange-700'}`}
                   >
-                    Add Column
+                    Create
                   </button>
                 </div>
              </form>

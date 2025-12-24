@@ -20,6 +20,12 @@ contextBridge.exposeInMainWorld('electron', {
   updateFileFolder: (fileId, folderId) => ipcRenderer.invoke('update-file-folder', { fileId, folderId }),
   getFileContent: (id) => ipcRenderer.invoke('get-file-content', id), // Returns Base64
   
+  // Dataset Ops
+  importDatasets: (files) => ipcRenderer.invoke('import-dataset', files),
+  getDatasetRows: (datasetId) => ipcRenderer.invoke('get-dataset-rows', datasetId),
+  updateDatasetRow: (id, data) => ipcRenderer.invoke('update-dataset-row', { id, data }),
+  deleteDataset: (id) => ipcRenderer.invoke('delete-dataset', id),
+  
   // Folder Ops
   addFolder: (name) => ipcRenderer.invoke('add-folder', name),
   deleteFolder: (id) => ipcRenderer.invoke('delete-folder', id),

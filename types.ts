@@ -8,7 +8,7 @@ export interface PdfMetadata {
 }
 
 export interface AnalysisResult {
-  metadata: PdfMetadata;
+  metadata?: PdfMetadata;
   _models?: Record<string, string>; // Maps field key to CURRENT model ID
   _responses?: Record<string, Record<string, any>>; // Maps field key -> model ID -> content
   _usage?: {
@@ -17,6 +17,24 @@ export interface AnalysisResult {
       estimatedCost?: number;
   };
   [key: string]: any; 
+}
+
+export interface Dataset {
+    id: string;
+    name: string;
+    uploadDate: string;
+    rowCount: number;
+    headers?: string[]; // Optional for backward compatibility, but expected for new ones
+}
+
+export interface DatasetRow {
+    id: string;
+    datasetId: string;
+    rowIndex: number;
+    data: Record<string, any>;
+    analysis?: AnalysisResult;
+    analyzingColumns?: string[];
+    status?: 'analyzing' | 'completed' | 'error';
 }
 
 export const AVAILABLE_MODELS_CONFIG = [
@@ -77,6 +95,7 @@ declare global {
       getInitialData: () => Promise<{
         files: FileEntry[];
         folders: Folder[];
+        datasets: Dataset[];
         settings: any;
         columnConfigs: Record<string, ColumnConfig[]>;
         customColumns: any[];
@@ -89,6 +108,12 @@ declare global {
       updateFileFolder: (fileId: string, folderId: string) => Promise<void>;
       getFileContent: (id: string) => Promise<string | null>;
       
+      // Dataset Ops
+      importDatasets: (files: { name: string; path: string }[]) => Promise<Dataset[]>;
+      getDatasetRows: (datasetId: string) => Promise<DatasetRow[]>;
+      updateDatasetRow: (id: string, data: any) => Promise<void>;
+      deleteDataset: (id: string) => Promise<void>;
+
       // Folder Ops
       addFolder: (name: string) => Promise<Folder>;
       deleteFolder: (id: string) => Promise<void>;

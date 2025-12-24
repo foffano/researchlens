@@ -148,3 +148,82 @@ export const analyzePdf = async (
     throw error;
   }
 };
+
+export const analyzeRow = async (
+  rowData: Record<string, any>,
+  columnsToAnalyze: ColumnDefinition[],
+  apiKey: string,
+  modelId: string = "gemini-2.0-flash"
+): Promise<AnalysisResult> => {
+  if (!apiKey) {
+    throw new Error("API Key is missing.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // 1. Build Prompt
+  let instruction = `
+    Analyze the following data record (JSON format):
+    ${JSON.stringify(rowData, null, 2)}
+    
+    Task: Extract or generate content for the following fields based on the data provided.
+  `;
+
+  columnsToAnalyze.forEach(col => {
+      // Simple prompt injection for now. 
+      // Feature Idea: Allow {{ColumnName}} syntax replacement here if we wanted pre-processing, 
+      // but feeding the whole JSON to Gemini is smarter contextually.
+      instruction += `\n- Field '${col.id}': ${col.prompt}`;
+  });
+
+  // 2. Build Schema
+  const properties: Record<string, Schema> = {};
+  const requiredFields: string[] = [];
+
+  columnsToAnalyze.forEach(col => {
+    properties[col.id] = { type: Type.STRING };
+    requiredFields.push(col.id);
+  });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: {
+        parts: [{ text: instruction }],
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: properties,
+          required: requiredFields,
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from Gemini");
+
+    const result = JSON.parse(text) as AnalysisResult;
+
+    // Inject Usage
+    const usage = response.usageMetadata;
+    result._usage = {
+        promptTokens: usage?.promptTokenCount || 0,
+        responseTokens: usage?.candidatesTokenCount || 0
+    };
+    
+    result._models = {};
+    columnsToAnalyze.forEach(col => {
+       if (result[col.id]) {
+         result._models![col.id] = modelId;
+       }
+    });
+
+    return result;
+
+  } catch (error) {
+    console.error("Gemini Row Analysis Error:", error);
+    throw error;
+  }
+};

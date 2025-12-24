@@ -5,17 +5,24 @@ import {
   FolderOpen,
   Settings,
   Trash2,
-  PanelLeftClose
+  PanelLeftClose,
+  Database,
+  Table
 } from 'lucide-react';
-import { Folder, FileEntry } from '../types';
+import { Folder, FileEntry, Dataset } from '../types';
 
 interface SidebarProps {
   files: FileEntry[];
   folders: Folder[];
+  datasets: Dataset[];
   selectedFolderId: string | null;
+  selectedDatasetId: string | null;
   onSelectFolder: (id: string | null) => void;
+  onSelectDataset: (id: string) => void;
   onCreateFolder: (name: string) => void;
   onDeleteFolder: (id: string) => void;
+  onDeleteDataset: (id: string) => void;
+  onImportDataset: () => void;
   onOpenSettings: () => void;
   isOpen: boolean;
   onToggle: () => void;
@@ -23,11 +30,16 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   files,
-  folders, 
-  selectedFolderId, 
-  onSelectFolder, 
+  folders,
+  datasets,
+  selectedFolderId,
+  selectedDatasetId, 
+  onSelectFolder,
+  onSelectDataset,
   onCreateFolder,
   onDeleteFolder,
+  onDeleteDataset,
+  onImportDataset,
   onOpenSettings,
   isOpen,
   onToggle
@@ -118,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button 
                   onClick={() => onSelectFolder(null)}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    selectedFolderId === null 
+                    selectedFolderId === null && selectedDatasetId === null
                       ? 'text-gray-900 bg-gray-100 dark:bg-gray-800 dark:text-white' 
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
@@ -128,6 +140,57 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               </nav>
 
+              {/* DATASETS SECTION */}
+              <div className="mt-8">
+                <div className="flex items-center justify-between px-3 mb-2">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wider">
+                    Datasets
+                  </span>
+                  <button 
+                    onClick={onImportDataset}
+                    className="text-gray-400 hover:text-orange-600 transition-colors"
+                    title="Import Dataset (CSV, Excel)"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                
+                <nav className="space-y-1">
+                  {datasets.length === 0 && (
+                     <div className="px-3 py-2 text-xs text-gray-400 italic">
+                        No datasets
+                     </div>
+                  )}
+                  {datasets.map(ds => (
+                    <div key={ds.id} className="group flex items-center gap-1 pr-2 rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <button
+                        onClick={() => onSelectDataset(ds.id)}
+                        className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md truncate ${
+                          selectedDatasetId === ds.id
+                            ? 'text-orange-700 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400' 
+                            : 'text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        <Table size={16} />
+                        <span className="truncate">{ds.name}</span>
+                      </button>
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteDataset(ds.id);
+                        }}
+                        className="hidden group-hover:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
+                        title="Delete Dataset"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </nav>
+              </div>
+
+              {/* FOLDERS SECTION */}
               <div className="mt-8">
                 <div className="flex items-center justify-between px-3 mb-2">
                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wider">

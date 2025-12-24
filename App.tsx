@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { RightSidebar } from './components/RightSidebar';
 import { FileRow } from './components/FileRow';
+import { DatasetRowItem } from './components/DatasetRow';
 import { SettingsModal, AppSettings } from './components/SettingsModal';
-import { analyzePdf, fileToBase64 } from './services/gemini';
-import { FileEntry, ColumnConfig, Folder, FilterState } from './types';
-import { Upload, Plus, Download, Search, Filter, Info, Menu } from 'lucide-react';
+import { analyzePdf, analyzeRow, fileToBase64 } from './services/gemini';
+import { FileEntry, ColumnConfig, Folder, FilterState, Dataset, DatasetRow } from './types';
+import { Upload, Plus, Download, Search, Filter, Info, Menu, ArrowLeft, Database, FileText, Pin } from 'lucide-react';
 import { FilterMenu } from './components/FilterMenu';
 import {
   DndContext, 
@@ -28,35 +29,35 @@ import { CSS } from '@dnd-kit/utilities';
 // Include prompts in default config so they are self-contained
 const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'fileInfo', label: 'Files', visible: true, width: '400px' },
-  { 
+  {
     id: 'problemStatement', 
     label: 'Problem Statement', 
     visible: true, 
     width: '350px',
     prompt: "The core problem statement, research question, or hypothesis."
   },
-  { 
+  {
     id: 'results', 
     label: 'Results', 
     visible: true, 
     width: '350px',
     prompt: "Key results, statistical findings, or main takeaways (as a list)."
   },
-  { 
+  {
     id: 'methods', 
     label: 'Methods', 
     visible: false, 
     width: '350px',
     prompt: "The methodology, study design, or datasets used."
   },
-  { 
+  {
     id: 'summary', 
     label: 'Summary', 
     visible: false, 
     width: '350px',
     prompt: "A brief, high-level summary of the paper."
   },
-  { 
+  {
     id: 'limitations', 
     label: 'Limitations', 
     visible: false, 
@@ -69,10 +70,12 @@ interface SortableHeaderProps {
   id: string;
   label: string;
   prompt?: string;
+  isPinned?: boolean;
   onToggleVisibility: (id: string) => void;
+  onPin?: (id: string) => void;
 }
 
-const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, onToggleVisibility }) => {
+const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, isPinned, onToggleVisibility, onPin }) => {
   const {
     attributes,
     listeners,
@@ -96,7 +99,7 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, onTo
       style={style} 
       {...attributes} 
       {...listeners}
-      className="flex-none w-[350px] p-3 border-r border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center justify-between bg-gray-50 dark:bg-gray-800 select-none group/header"
+      className={`flex-none w-[350px] p-3 border-r border-gray-200 dark:border-gray-700 text-xs font-semibold uppercase tracking-wider flex items-center justify-between select-none group/header ${isPinned ? 'bg-orange-50/50 dark:bg-orange-900/10 text-orange-600 dark:text-orange-400' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
     >
       <div className="flex items-center gap-2 min-w-0 relative">
         <span className="truncate">{label}</span>
@@ -113,16 +116,31 @@ const SortableHeader: React.FC<SortableHeaderProps> = ({ id, label, prompt, onTo
         )}
       </div>
       
-      <button 
-        onClick={(e) => {
-            e.stopPropagation(); // Prevent drag start when clicking close
-            onToggleVisibility(id);
-        }} 
-        className="text-gray-400 hover:text-red-500 cursor-pointer"
-        onPointerDown={(e) => e.stopPropagation()} // Important to stop drag initiation
-      >
-        ×
-      </button>
+      <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+        {onPin && (
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onPin(id);
+                }}
+                className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${isPinned ? 'text-orange-600' : 'text-gray-400'}`}
+                title={isPinned ? "Unpin column" : "Pin to first column"}
+                onPointerDown={(e) => e.stopPropagation()}
+            >
+                <Pin size={12} className={isPinned ? "fill-current" : ""} />
+            </button>
+        )}
+        <button 
+            onClick={(e) => {
+                e.stopPropagation(); // Prevent drag start when clicking close
+                onToggleVisibility(id);
+            }} 
+            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 cursor-pointer"
+            onPointerDown={(e) => e.stopPropagation()} // Important to stop drag initiation
+        >
+            ×
+        </button>
+      </div>
     </div>
   );
 };
@@ -131,7 +149,12 @@ const App: React.FC = () => {
   // --- State: Data ---
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
+  const [datasetRows, setDatasetRows] = useState<DatasetRow[]>([]);
+  const [isLoadingRows, setIsLoadingRows] = useState(false);
+  const [pinnedColumns, setPinnedColumns] = useState<Record<string, string>>({}); // datasetId -> columnId
 
   // --- State: Settings ---
   const [showSettings, setShowSettings] = useState(false);
@@ -196,7 +219,11 @@ const App: React.FC = () => {
      }
      setFiles([]);
      setFolders([]);
+     setDatasets([]);
+     setDatasetRows([]);
      setSelectedFolderId(null);
+     setSelectedDatasetId(null);
+     setPinnedColumns({});
      setColumnConfigs({ 'root': DEFAULT_COLUMNS });
      // Note: We deliberately do NOT clear the API key settings here
   };
@@ -210,7 +237,7 @@ const App: React.FC = () => {
   const [savedCustomColumns, setSavedCustomColumns] = useState<{id: string, label: string, prompt: string}[]>([]);
 
   // --- Deletion State ---
-  const [itemToDelete, setItemToDelete] = useState<{ type: 'file' | 'column', id: string } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'file' | 'column' | 'dataset', id: string } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
   // --- Persistence Logic ---
@@ -223,6 +250,7 @@ const App: React.FC = () => {
           if (data) {
             setFiles(data.files || []);
             setFolders(data.folders || []);
+            setDatasets(data.datasets || []);
             if (data.columnConfigs && Object.keys(data.columnConfigs).length > 0) {
               setColumnConfigs(data.columnConfigs);
             }
@@ -232,6 +260,12 @@ const App: React.FC = () => {
             if (data.settings && Object.keys(data.settings).length > 0) {
               setSettings(prev => ({ ...prev, ...data.settings }));
             }
+            // Load pinned columns from settings? Or separate store? 
+            // For now, in-memory is fine or we could attach to settings. 
+            // Let's attach to settings for persistence if we wanted, but not critical for prototype.
+            // Actually, let's use localStorage for pinned columns for now
+            const savedPinned = localStorage.getItem('researchlens_pinned_cols');
+            if (savedPinned) setPinnedColumns(JSON.parse(savedPinned));
           }
         } catch (e) {
           console.error("Failed to load initial data", e);
@@ -278,7 +312,7 @@ const App: React.FC = () => {
   }, [savedCustomColumns]);
 
   // Persist Column Configs when they change
-  const activeFolderKey = selectedFolderId || 'root';
+  const activeFolderKey = selectedDatasetId || selectedFolderId || 'root';
   useEffect(() => {
     if (window.electron?.saveColumnConfig) {
       // Save ONLY the active folder config to avoid spamming
@@ -289,7 +323,13 @@ const App: React.FC = () => {
     }
   }, [columnConfigs, activeFolderKey]);
 
+  // Persist Pinned Columns
+  useEffect(() => {
+      localStorage.setItem('researchlens_pinned_cols', JSON.stringify(pinnedColumns));
+  }, [pinnedColumns]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const datasetInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to get columns for current view
   const activeColumns = columnConfigs[activeFolderKey] || DEFAULT_COLUMNS;
@@ -342,6 +382,7 @@ const App: React.FC = () => {
       }
       
       setSelectedFolderId(newFolder.id);
+      setSelectedDatasetId(null);
     }
   };
 
@@ -419,6 +460,193 @@ const App: React.FC = () => {
     setItemToDelete({ type: 'file', id: fileId });
   };
 
+  // --- DATASET LOGIC ---
+  const handleImportDataset = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || !window.electron?.importDatasets) return;
+
+      const fileList = Array.from(files).map(f => {
+          const realPath = window.electron?.getFilePath ? window.electron.getFilePath(f) : (f as any).path;
+          return { name: f.name, path: realPath };
+      });
+
+      const newDatasets = await window.electron.importDatasets(fileList);
+      setDatasets(prev => [...newDatasets, ...prev]);
+      
+      // Auto-select first new dataset
+      if (newDatasets.length > 0) {
+          handleSelectDataset(newDatasets[0].id);
+      }
+      
+      if (datasetInputRef.current) datasetInputRef.current.value = '';
+  };
+
+  const handleSelectDataset = async (id: string) => {
+      setSelectedDatasetId(id);
+      setSelectedFolderId(null);
+      setDatasetRows([]);
+      setIsLoadingRows(true);
+
+      if (window.electron?.getDatasetRows) {
+          const rows = await window.electron.getDatasetRows(id);
+          setDatasetRows(rows);
+          
+          // Get headers from dataset object if available, or fallback to first row
+          const currentDataset = datasets.find(d => d.id === id);
+          
+          let keys: string[] = [];
+          
+          if (currentDataset && currentDataset.headers && currentDataset.headers.length > 0) {
+              keys = currentDataset.headers;
+          } else if (rows.length > 0) {
+              // Fallback for old datasets without stored headers
+              keys = Object.keys(rows[0].data);
+          }
+          
+          // Generate Default Columns if not exists or if we have new keys
+          setColumnConfigs(prev => {
+              if (prev[id] && prev[id].length > 1) return prev; // already configured (length > 1 because of 'fileInfo')
+              
+              if (keys.length === 0) return prev;
+              
+              const newCols: ColumnConfig[] = [
+                  { id: 'fileInfo', label: 'Identity', visible: true, width: '400px' }, // Stick Left Col
+                  ...keys.map((key, idx) => ({
+                      id: key,
+                      label: key.charAt(0).toUpperCase() + key.slice(1),
+                      visible: true, // Show all columns by default
+                      width: '350px'
+                  }))
+              ];
+              
+              return { ...prev, [id]: newCols };
+          });
+      }
+      setIsLoadingRows(false);
+  };
+
+  const handleDeleteDataset = (id: string) => {
+      setItemToDelete({ type: 'dataset', id: id });
+  };
+  
+  const handlePinColumn = (colId: string) => {
+      if (!selectedDatasetId) return;
+      setPinnedColumns(prev => ({
+          ...prev,
+          [selectedDatasetId]: colId
+      }));
+  };
+
+  const handleAnalyzeDatasetRow = async (rowId: string, colId: string, prompt: string, modelId?: string) => {
+      const row = datasetRows.find(r => r.id === rowId);
+      if (!row) return;
+
+      if (!settings.apiKey) {
+          setShowSettings(true);
+          return;
+      }
+      
+      // Check cache
+      if (modelId && row.analysis?._responses?.[colId]?.[modelId]) {
+          setDatasetRows(prev => prev.map(r => {
+             if (r.id !== rowId) return r;
+             const newAnalysis = { ...r.analysis! };
+             newAnalysis[colId] = newAnalysis._responses![colId][modelId];
+             if (!newAnalysis._models) newAnalysis._models = {};
+             newAnalysis._models[colId] = modelId;
+             return { ...r, analysis: newAnalysis };
+          }));
+          return;
+      }
+      
+      // Update Status
+      setDatasetRows(prev => prev.map(r => {
+          if (r.id !== rowId) return r;
+          const currentAnalyzing = r.analyzingColumns || [];
+          return {
+              ...r,
+              status: 'analyzing',
+              analyzingColumns: [...currentAnalyzing, colId]
+          };
+      }));
+
+      const modelToUse = modelId || settings.modelId;
+
+      try {
+          const result = await analyzeRow(
+              row.data, 
+              [{ id: colId, prompt }], 
+              settings.apiKey, 
+              modelToUse
+          );
+
+          setDatasetRows(prev => prev.map(r => {
+              if (r.id !== rowId) return r;
+              
+              // Merge Logic (Similar to processFileAnalysis)
+              let finalAnalysis = result;
+              if (r.analysis) {
+                  finalAnalysis = { ...r.analysis };
+                  // Merge Usage
+                  if (result._usage && finalAnalysis._usage) {
+                      finalAnalysis._usage.promptTokens += result._usage.promptTokens;
+                      finalAnalysis._usage.responseTokens += result._usage.responseTokens;
+                      // Cost calc
+                      const isPro = modelToUse.includes('pro');
+                      const cost = (result._usage.promptTokens / 1000000 * (isPro ? 1.25 : 0.1)) + (result._usage.responseTokens / 1000000 * (isPro ? 5.0 : 0.4));
+                      finalAnalysis._usage.estimatedCost = (finalAnalysis._usage.estimatedCost || 0) + cost;
+                  }
+                  
+                  // Update Field
+                  if (result[colId] !== undefined) {
+                      finalAnalysis[colId] = result[colId];
+                      if (!finalAnalysis._models) finalAnalysis._models = {};
+                      finalAnalysis._models[colId] = modelToUse;
+                      if (!finalAnalysis._responses) finalAnalysis._responses = {};
+                      if (!finalAnalysis._responses[colId]) finalAnalysis._responses[colId] = {};
+                      finalAnalysis._responses[colId][modelToUse] = result[colId];
+                  }
+              }
+
+              const remainingAnalyzing = (r.analyzingColumns || []).filter(c => c !== colId);
+              return {
+                  ...r,
+                  status: remainingAnalyzing.length > 0 ? 'analyzing' : 'completed',
+                  analyzingColumns: remainingAnalyzing,
+                  analysis: finalAnalysis
+              };
+          }));
+
+          // Save
+          if (window.electron?.saveAnalysis) {
+              window.electron.saveAnalysis(rowId, result);
+          }
+
+      } catch (error) {
+          console.error("Error analyzing row:", error);
+           setDatasetRows(prev => prev.map(r => {
+              if (r.id !== rowId) return r;
+              const remainingAnalyzing = (r.analyzingColumns || []).filter(c => c !== colId);
+              return {
+                  ...r,
+                  status: remainingAnalyzing.length > 0 ? 'analyzing' : 'error',
+                  analyzingColumns: remainingAnalyzing
+              };
+          }));
+      }
+  };
+
+  const handleUpdateRow = (rowId: string, newData: Record<string, any>) => {
+      // Optimistic update
+      setDatasetRows(prev => prev.map(r => r.id === rowId ? { ...r, data: newData } : r));
+      
+      // Persist
+      if (window.electron?.updateDatasetRow) {
+          window.electron.updateDatasetRow(rowId, newData);
+      }
+  };
+
+  // --- Filter & Search Logic ---
   const filteredFiles = files.filter(f => {
     // 1. Folder Filter
     if (selectedFolderId !== null && f.folderId !== selectedFolderId) return false;
@@ -462,7 +690,22 @@ const App: React.FC = () => {
     return true;
   });
 
+  const filteredRows = datasetRows.filter(r => {
+      if (filters.searchQuery) {
+          const q = filters.searchQuery.toLowerCase();
+          const dataValues = Object.values(r.data).join(' ').toLowerCase();
+          const analysisValues = r.analysis ? Object.values(r.analysis).filter(v => typeof v === 'string').join(' ').toLowerCase() : '';
+          
+          if (!dataValues.includes(q) && !analysisValues.includes(q)) return false;
+      }
+      return true;
+  });
+
   const getPageTitle = () => {
+    if (selectedDatasetId) {
+        const ds = datasets.find(d => d.id === selectedDatasetId);
+        return ds ? ds.name : "Unknown Dataset";
+    }
     if (selectedFolderId === null) return "All Files";
     const folder = folders.find(f => f.id === selectedFolderId);
     return folder ? folder.name : "Unknown Folder";
@@ -705,14 +948,26 @@ const App: React.FC = () => {
                  return c;
             });
         } else {
-            const rawLabel = customPrompt ? key.replace('custom_', '').replace(/_[0-9]+$/, '') : key;
-            const formattedLabel = rawLabel.replace(/_/g, ' ')
-                                        .split(' ')
-                                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                        .join(' ');
+            // Logic for Custom Columns (AI or Manual)
+            let finalLabel = key;
+            
+            // Only do magic formatting if it looks like an internal ID (starts with custom_)
+            if (key.startsWith('custom_')) {
+                 // Remove custom_ prefix and the timestamp suffix
+                 const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, '');
+                 // Format: replace underscores with spaces and capitalize words
+                 finalLabel = rawLabel.replace(/_/g, ' ')
+                                      .split(' ')
+                                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                      .join(' ');
+            } else if (!customPrompt) {
+                 // Fallback for other keys: just capitalize first letter
+                 finalLabel = key.charAt(0).toUpperCase() + key.slice(1);
+            }
 
             const defaultMatch = DEFAULT_COLUMNS.find(d => d.id === key);
-            const finalLabel = defaultMatch ? defaultMatch.label : formattedLabel;
+            // If default match exists, prefer its label, otherwise use ours
+            finalLabel = defaultMatch ? defaultMatch.label : finalLabel;
 
             newColConfig = {
                 id: key,
@@ -726,22 +981,22 @@ const App: React.FC = () => {
         return { ...prev, [activeFolderKey]: newConfig };
     });
 
-    // 1b. Save to "My Columns" if it's a new custom column
-    if (customPrompt && !DEFAULT_COLUMNS.find(c => c.id === key)) {
-       // Re-calculate formatted label for storage if needed, or reuse variable if scope permits.
-       // Since variables above are inside the setColumnConfigs callback, we need to recreate the label logic here 
-       // OR move the logic outside. Moving outside is cleaner.
-       
-       const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, '');
-       const formattedLabel = rawLabel.replace(/_/g, ' ')
-                                    .split(' ')
-                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                    .join(' ');
+    // 1b. Save to "My Columns" ONLY if it's a custom column
+    if (!DEFAULT_COLUMNS.find(c => c.id === key)) {
+       // Correct Label for storage
+       let finalLabel = key;
+       if (key.startsWith('custom_')) {
+            const rawLabel = key.replace('custom_', '').replace(/_[0-9]+$/, '');
+            finalLabel = rawLabel.replace(/_/g, ' ')
+                                 .split(' ')
+                                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                 .join(' ');
+       }
 
        const newCustomCol = { 
           id: key, 
-          label: formattedLabel, 
-          prompt: customPrompt 
+          label: finalLabel, 
+          prompt: customPrompt || ''
        };
        setSavedCustomColumns(prev => {
           if (prev.find(c => c.id === key)) return prev;
@@ -809,6 +1064,30 @@ const App: React.FC = () => {
   }
 
   const handleExportCSV = () => {
+    if (selectedDatasetId) {
+        // Export Dataset
+        if (filteredRows.length === 0) return;
+        
+        const dynamicCols = activeColumns.filter(c => c.id !== 'fileInfo' && c.visible);
+        const headers = ['Index', ...dynamicCols.map(c => c.label)];
+        
+        const rows = filteredRows.map(r => {
+            const rowData = [String(r.rowIndex + 1)];
+            
+            dynamicCols.forEach(col => {
+                const val = r.analysis?.[col.id] !== undefined ? r.analysis[col.id] : r.data[col.id];
+                let strVal = val === undefined || val === null ? '' : String(val);
+                rowData.push(`"${strVal.replace(/"/g, '""')}"`);
+            });
+            return rowData.join(',');
+        });
+        
+        const csvContent = [headers.join(','), ...rows].join('\n');
+        downloadCSV(csvContent, `dataset_export_${selectedDatasetId}`);
+        return;
+    }
+
+    // Export PDFs
     if (filteredFiles.length === 0) {
       alert("No files to export in current view.");
       return;
@@ -847,11 +1126,15 @@ const App: React.FC = () => {
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    downloadCSV(csvContent, `research_lens_export_${selectedFolderId || 'all'}`);
+  };
+
+  const downloadCSV = (content: string, prefix: string) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `research_lens_export_${selectedFolderId || 'all'}_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `${prefix}_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -866,6 +1149,12 @@ const App: React.FC = () => {
     } else if (itemToDelete.type === 'column') {
       if (window.electron?.deleteCustomColumn) window.electron.deleteCustomColumn(itemToDelete.id);
       setSavedCustomColumns(prev => prev.filter(c => c.id !== itemToDelete.id));
+    } else if (itemToDelete.type === 'dataset') {
+        if (window.electron?.deleteDataset) window.electron.deleteDataset(itemToDelete.id);
+        setDatasets(prev => prev.filter(d => d.id !== itemToDelete.id));
+        if (selectedDatasetId === itemToDelete.id) {
+            setSelectedDatasetId(null);
+        }
     }
     setItemToDelete(null);
   };
@@ -876,13 +1165,27 @@ const App: React.FC = () => {
       <Sidebar 
         files={files}
         folders={folders}
+        datasets={datasets}
         selectedFolderId={selectedFolderId}
-        onSelectFolder={setSelectedFolderId}
+        selectedDatasetId={selectedDatasetId}
+        onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedDatasetId(null); }}
+        onSelectDataset={handleSelectDataset}
         onCreateFolder={handleCreateFolder}
         onDeleteFolder={handleDeleteFolder}
+        onDeleteDataset={handleDeleteDataset}
+        onImportDataset={() => datasetInputRef.current?.click()}
         onOpenSettings={() => setShowSettings(true)}
         isOpen={isLeftSidebarOpen}
         onToggle={() => setIsLeftSidebarOpen(!isLeftSidebarOpen)}
+      />
+
+      <input 
+         type="file" 
+         ref={datasetInputRef} 
+         className="hidden" 
+         accept=".csv,.xlsx,.xls" 
+         multiple 
+         onChange={handleImportDataset} 
       />
 
       <SettingsModal 
@@ -907,10 +1210,26 @@ const App: React.FC = () => {
                     <Menu size={20} />
                   </button>
                 )}
+                
+                {selectedDatasetId ? (
+                   <button 
+                     onClick={() => { setSelectedDatasetId(null); setSelectedFolderId(null); }}
+                     className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors mr-1"
+                     title="Back to Library"
+                   >
+                       <ArrowLeft size={18} />
+                   </button>
+                ) : null}
+
                 <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{getPageTitle()}</h1>
                 {selectedFolderId && (
                     <span className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">
                         Folder
+                    </span>
+                )}
+                {selectedDatasetId && (
+                    <span className="text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400 px-2 py-1 rounded flex items-center gap-1">
+                        <Database size={12} /> Dataset
                     </span>
                 )}
             </div>
@@ -920,35 +1239,37 @@ const App: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input 
                     type="text" 
-                    placeholder="Search files..." 
+                    placeholder={selectedDatasetId ? "Search rows..." : "Search files..."}
                     value={filters.searchQuery}
                     onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
                     className="pl-9 pr-4 py-2 w-64 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all dark:placeholder-gray-500"
                   />
                 </div>
 
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                    className={`p-2 rounded-lg border transition-colors relative ${
-                      isFilterMenuOpen || filters.articleTypes.length > 0 || filters.dateRange.start 
-                        ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400' 
-                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <Filter size={20} />
-                    {(filters.articleTypes.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white dark:border-gray-800"></span>
-                    )}
-                  </button>
+                {!selectedDatasetId && (
+                  <div className="relative">
+                    <button 
+                      onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                      className={`p-2 rounded-lg border transition-colors relative ${
+                        isFilterMenuOpen || filters.articleTypes.length > 0 || filters.dateRange.start 
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400' 
+                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <Filter size={20} />
+                      {(filters.articleTypes.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full border border-white dark:border-gray-800"></span>
+                      )}
+                    </button>
 
-                  <FilterMenu 
-                    isOpen={isFilterMenuOpen}
-                    onClose={() => setIsFilterMenuOpen(false)}
-                    filters={filters}
-                    onFilterChange={setFilters}
-                  />
-                </div>
+                    <FilterMenu 
+                      isOpen={isFilterMenuOpen}
+                      onClose={() => setIsFilterMenuOpen(false)}
+                      filters={filters}
+                      onFilterChange={setFilters}
+                    />
+                  </div>
+                )}
 
                 <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
 
@@ -960,13 +1281,16 @@ const App: React.FC = () => {
                     <Download size={16} />
                     Export CSV
                 </button>
-                <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
-                >
-                    <Upload size={16} />
-                    Upload PDFs
-                </button>
+                
+                {!selectedDatasetId && (
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm"
+                    >
+                        <Upload size={16} />
+                        Upload PDFs
+                    </button>
+                )}
                 <input 
                     type="file" 
                     ref={fileInputRef} 
@@ -989,7 +1313,7 @@ const App: React.FC = () => {
                 >
                   <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 sticky top-0 z-30">
                       <div className="flex-none w-[400px] p-3 pl-6 border-r border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center justify-between sticky left-0 bg-gray-50 dark:bg-gray-800 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-gray-900/50">
-                          Files ({filteredFiles.length})
+                          {selectedDatasetId ? `Rows (${filteredRows.length})` : `Files (${filteredFiles.length})`}
                       </div>
                       
                       <SortableContext 
@@ -1002,7 +1326,9 @@ const App: React.FC = () => {
                               id={col.id} 
                               label={col.label}
                               prompt={col.prompt}
+                              isPinned={selectedDatasetId ? (pinnedColumns[selectedDatasetId] === col.id) : false}
                               onToggleVisibility={toggleColumnVisibility}
+                              onPin={selectedDatasetId ? handlePinColumn : undefined}
                             />
                         ))}
                       </SortableContext>
@@ -1021,32 +1347,50 @@ const App: React.FC = () => {
 
                 {/* Table Body */}
                 <div className="bg-white dark:bg-gray-900">
-                    {filteredFiles.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-96 text-gray-400">
-                            <Upload size={48} className="mb-4 text-gray-200 dark:text-gray-700" />
-                            <p className="text-lg font-medium text-gray-500 dark:text-gray-400">No files in {selectedFolderId ? 'this folder' : 'library'}</p>
-                            <p className="text-sm mb-6 text-gray-400 dark:text-gray-500">Upload a research PDF to start analyzing.</p>
-                            <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium"
-                            >
-                                Browse files
-                            </button>
-                        </div>
+                    {selectedDatasetId ? (
+                         isLoadingRows ? (
+                             <div className="p-10 text-center text-gray-500">Loading rows...</div>
+                         ) : (
+                             filteredRows.map(row => (
+                                 <DatasetRowItem 
+                                     key={row.id}
+                                     row={row}
+                                     columns={activeColumns}
+                                     onAnalyzeColumn={handleAnalyzeDatasetRow}
+                                     onUpdateRow={handleUpdateRow}
+                                     fontSize={settings.fontSize || 'medium'}
+                                     pinnedColumnId={pinnedColumns[selectedDatasetId]}
+                                 />
+                             ))
+                         )
                     ) : (
-                        filteredFiles.map(file => (
-                            <FileRow 
-                                key={file.id} 
-                                file={file} 
-                                columns={activeColumns} 
-                                folders={folders}
-                                onMoveFile={handleMoveFile}
-                                onDelete={handleDeleteFile}
-                                onAnalyzeColumn={handleAnalyzeColumn}
-                                onRetry={handleRetryAnalysis}
-                                fontSize={settings.fontSize || 'medium'}
-                            />
-                        ))
+                        filteredFiles.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-96 text-gray-400">
+                                <Upload size={48} className="mb-4 text-gray-200 dark:text-gray-700" />
+                                <p className="text-lg font-medium text-gray-500 dark:text-gray-400">No files in {selectedFolderId ? 'this folder' : 'library'}</p>
+                                <p className="text-sm mb-6 text-gray-400 dark:text-gray-500">Upload a research PDF to start analyzing.</p>
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium"
+                                >
+                                    Browse files
+                                </button>
+                            </div>
+                        ) : (
+                            filteredFiles.map(file => (
+                                <FileRow 
+                                    key={file.id} 
+                                    file={file} 
+                                    columns={activeColumns} 
+                                    folders={folders}
+                                    onMoveFile={handleMoveFile}
+                                    onDelete={handleDeleteFile}
+                                    onAnalyzeColumn={handleAnalyzeColumn}
+                                    onRetry={handleRetryAnalysis}
+                                    fontSize={settings.fontSize || 'medium'}
+                                />
+                            ))
+                        )
                     )}
                 </div>
              </div>
@@ -1060,6 +1404,7 @@ const App: React.FC = () => {
         onDeleteCustomColumn={handleDeleteCustomColumn}
         isOpen={isRightSidebarOpen}
         onToggle={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+        isDatasetView={!!selectedDatasetId}
       />
 
       {/* Folder Delete Modal */}
@@ -1102,12 +1447,14 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-80 p-4 animate-in fade-in zoom-in duration-100">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-              {itemToDelete.type === 'file' ? 'Delete File?' : 'Remove Column?'}
+              {itemToDelete.type === 'file' ? 'Delete File?' : (itemToDelete.type === 'dataset' ? 'Delete Dataset?' : 'Remove Column?')}
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {itemToDelete.type === 'file' 
                 ? "Are you sure you want to delete this file?" 
-                : "Remove this column from your saved list?"}
+                : (itemToDelete.type === 'dataset' 
+                    ? "Are you sure? This will delete the dataset and all generated analysis." 
+                    : "Remove this column from your saved list?")}
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -1120,7 +1467,7 @@ const App: React.FC = () => {
                 onClick={confirmDelete}
                 className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
               >
-                {itemToDelete.type === 'file' ? 'Delete' : 'Remove'}
+                {itemToDelete.type === 'column' ? 'Remove' : 'Delete'}
               </button>
             </div>
           </div>
