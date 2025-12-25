@@ -110,7 +110,9 @@ declare global {
       
       // Dataset Ops
       importDatasets: (files: { name: string; path: string }[]) => Promise<Dataset[]>;
-      getDatasetRows: (datasetId: string) => Promise<DatasetRow[]>;
+      getDatasetRows: (datasetId: string, page: number, pageSize: number, search: string) => Promise<{ rows: DatasetRow[], total: number }>;
+      exportDatasetCSV: (datasetId: string, search: string, columns: { id: string, label: string }[]) => Promise<{ success: boolean, filePath?: string, error?: string, canceled?: boolean }>;
+      saveCSV: (content: string, prefix: string) => Promise<{ success: boolean, filePath?: string, fileName?: string, error?: string }>;
       updateDatasetRow: (id: string, data: any) => Promise<void>;
       renameDataset: (id: string, name: string) => Promise<void>;
       deleteDataset: (id: string) => Promise<void>;
@@ -131,6 +133,7 @@ declare global {
       // Search
       searchFiles: (query: string) => Promise<string[]>; // Returns IDs
       getUsageStats: () => Promise<{ model: string; totalPrompt: number; totalResponse: number }[]>;
+      openExplorer: (filePath: string) => Promise<void>;
       
       // Maintenance
       clearAllData: () => Promise<void>;

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
@@ -223,8 +223,76 @@ ipcMain.handle('import-dataset', async (event, files) => {
     return results;
 });
 
-ipcMain.handle('get-dataset-rows', (event, datasetId) => {
-    return db.getDatasetRows(datasetId);
+ipcMain.handle('get-dataset-rows', (event, { datasetId, page = 1, pageSize = 50, search = '' }) => {
+    const limit = pageSize;
+    const offset = (page - 1) * pageSize;
+    return db.getDatasetRows(datasetId, { limit, offset, search });
+});
+
+ipcMain.handle('export-dataset-csv', async (event, { datasetId, search, columns }) => {
+    // Save to Downloads automatically
+    const downloadsPath = app.getPath('downloads');
+    const fileName = `dataset_export_${datasetId}_${Date.now()}.csv`;
+    const filePath = path.join(downloadsPath, fileName);
+
+    try {
+        const writeStream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+        
+        const esc = (val) => {
+            if (val === null || val === undefined) return '""';
+            const str = String(val);
+            if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const headers = ['Index', ...columns.map(c => c.label)];
+        writeStream.write(headers.map(esc).join(',') + '\n');
+
+        const iterator = db.getDatasetRowsCursor(datasetId, search);
+        let chunk = [];
+        const CHUNK_SIZE = 500;
+        
+        const processChunk = (rows) => {
+            const ids = rows.map(r => r.id);
+            const analysisMap = db.getAnalysisForRows(ids);
+            
+            let chunkCsv = '';
+            for (const row of rows) {
+                let data = {};
+                try { data = JSON.parse(row.data); } catch(e) {}
+                const analysis = analysisMap[row.id] || {};
+                const rowValues = [String(row.rowIndex + 1)];
+                
+                columns.forEach(col => {
+                    let val = analysis[col.id];
+                    if (val === undefined) val = data[col.id];
+                    rowValues.push(esc(val));
+                });
+                chunkCsv += rowValues.join(',') + '\n';
+            }
+            writeStream.write(chunkCsv);
+        };
+
+        for (const row of iterator) {
+            chunk.push(row);
+            if (chunk.length >= CHUNK_SIZE) {
+                processChunk(chunk);
+                chunk = [];
+            }
+        }
+        
+        if (chunk.length > 0) processChunk(chunk);
+
+        writeStream.end();
+        
+        return { success: true, filePath, fileName };
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        return { success: false, error: error.message };
+    }
 });
 
 ipcMain.handle('update-dataset-row', (event, { id, data }) => {
@@ -319,6 +387,25 @@ ipcMain.handle('search-files', (event, query) => {
 
 ipcMain.handle('get-usage-stats', () => {
   return db.getUsageStats();
+});
+
+ipcMain.handle('save-csv', async (event, { content, prefix }) => {
+    const downloadsPath = app.getPath('downloads');
+    const fileName = `${prefix}_${Date.now()}.csv`;
+    const filePath = path.join(downloadsPath, fileName);
+
+    try {
+        await fs.writeFile(filePath, content, 'utf8');
+        return { success: true, filePath, fileName };
+    } catch (error) {
+        console.error('Save CSV failed:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('open-explorer', (event, filePath) => {
+    shell.showItemInFolder(filePath);
+    return { success: true };
 });
 
 ipcMain.handle('clear-all-data', async () => {

@@ -374,11 +374,34 @@ function addDatasetRows(rows) {
     transaction(rows);
 }
 
-function getDatasetRows(datasetId) {
-    const rows = db.prepare('SELECT * FROM dataset_rows WHERE datasetId = ? ORDER BY rowIndex ASC').all(datasetId);
+function getDatasetRows(datasetId, options = {}) {
+    const { limit = 50, offset = 0, search = '' } = options;
     
-    // Fetch analysis for these rows
-    if (rows.length === 0) return [];
+    // 1. Base Query Conditions
+    let query = 'SELECT * FROM dataset_rows WHERE datasetId = ?';
+    const params = [datasetId];
+
+    // 2. Search Logic (Search in 'data' JSON or 'analysis' content if needed, but keeping it simple to 'data' for now)
+    // Searching inside JSON with LIKE is tricky but works for simple text match.
+    // Ideally we'd use FTS5 but that requires schema changes. 
+    // We'll search in the raw JSON string.
+    if (search) {
+        query += ' AND data LIKE ?';
+        params.push(`%${search}%`);
+    }
+
+    // 3. Count Total (for Pagination)
+    const countStmt = db.prepare(query.replace('SELECT *', 'SELECT COUNT(*) as total'));
+    const total = countStmt.get(...params).total;
+
+    // 4. Fetch Paginated Rows
+    query += ' ORDER BY rowIndex ASC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+    
+    const rows = db.prepare(query).all(...params);
+    
+    // Fetch analysis for these rows ONLY
+    if (rows.length === 0) return { rows: [], total: 0 };
     
     const rowIds = rows.map(r => r.id);
     const placeholders = rowIds.map(() => '?').join(',');
@@ -388,20 +411,24 @@ function getDatasetRows(datasetId) {
     const analysisMap = {};
     allAnalysis.forEach(rec => {
         if (!analysisMap[rec.fileId]) analysisMap[rec.fileId] = {};
-        // Simplified mapping for rows (we might not need full history/usage for every row in the immediate UI, but let's consistency)
-        // For rows, we just want the latest content for each column usually.
-        // But let's stick to the 'analysis' object structure used in frontend.
         
         if (!analysisMap[rec.fileId]._models) analysisMap[rec.fileId]._models = {};
+        if (!analysisMap[rec.fileId]._responses) analysisMap[rec.fileId]._responses = {}; // Ensure _responses structure exists
         
         let content = rec.content;
         try { if (content && (content.startsWith('{') || content.startsWith('['))) content = JSON.parse(content); } catch(e){}
         
         analysisMap[rec.fileId][rec.columnId] = content;
         analysisMap[rec.fileId]._models[rec.columnId] = rec.model;
+        
+        // Map into _responses for cache consistency
+        if (!analysisMap[rec.fileId]._responses[rec.columnId]) {
+            analysisMap[rec.fileId]._responses[rec.columnId] = {};
+        }
+        analysisMap[rec.fileId]._responses[rec.columnId][rec.model] = content;
     });
     
-    return rows.map(row => {
+    const formattedRows = rows.map(row => {
         let data = {};
         try { data = JSON.parse(row.data); } catch(e) {}
         
@@ -413,8 +440,39 @@ function getDatasetRows(datasetId) {
             analysis: analysisMap[row.id] || {}
         };
     });
+
+    return { rows: formattedRows, total };
 }
 
+function getDatasetRowsCursor(datasetId, search = '') {
+    let query = 'SELECT * FROM dataset_rows WHERE datasetId = ?';
+    const params = [datasetId];
+
+    if (search) {
+        query += ' AND data LIKE ?';
+        params.push(`%${search}%`);
+    }
+    
+    query += ' ORDER BY rowIndex ASC';
+    return db.prepare(query).iterate(...params);
+}
+
+function getAnalysisForRows(rowIds) {
+    if (rowIds.length === 0) return {};
+    const placeholders = rowIds.map(() => '?').join(',');
+    const allAnalysis = db.prepare(`SELECT * FROM analysis WHERE fileId IN (${placeholders})`).all(...rowIds);
+    
+    const analysisMap = {};
+    allAnalysis.forEach(rec => {
+        if (!analysisMap[rec.fileId]) analysisMap[rec.fileId] = {};
+        
+        let content = rec.content;
+        try { if (content && (content.startsWith('{') || content.startsWith('['))) content = JSON.parse(content); } catch(e){}
+        
+        analysisMap[rec.fileId][rec.columnId] = content;
+    });
+    return analysisMap;
+}
 
 // --- FOLDER OPERATIONS ---
 
@@ -675,5 +733,7 @@ module.exports = {
   deleteDataset,
   addDatasetRows,
   getDatasetRows,
-  updateDatasetRow
+  updateDatasetRow,
+  getDatasetRowsCursor,
+  getAnalysisForRows
 };

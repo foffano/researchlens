@@ -154,6 +154,8 @@ const App: React.FC = () => {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [datasetRows, setDatasetRows] = useState<DatasetRow[]>([]);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0 });
+  const [exportStatus, setExportStatus] = useState<{ status: 'idle' | 'exporting' | 'success' | 'error', filePath?: string, fileName?: string, error?: string }>({ status: 'idle' });
   const [pinnedColumns, setPinnedColumns] = useState<Record<string, string>>({}); // datasetId -> columnId
 
   // --- State: Settings ---
@@ -502,47 +504,81 @@ const App: React.FC = () => {
       if (datasetInputRef.current) datasetInputRef.current.value = '';
   };
 
+  const fetchDatasetPage = async (id: string, page: number, search: string) => {
+      setIsLoadingRows(true);
+      if (window.electron?.getDatasetRows) {
+          const { rows, total } = await window.electron.getDatasetRows(id, page, 50, search);
+          setDatasetRows(rows);
+          setPagination({ page, pageSize: 50, total });
+          
+          // Header Logic (moved here to ensure it runs on first load)
+          if (page === 1) {
+             const currentDataset = datasets.find(d => d.id === id);
+             let keys: string[] = [];
+             if (currentDataset && currentDataset.headers && currentDataset.headers.length > 0) {
+                 keys = currentDataset.headers;
+             } else if (rows.length > 0) {
+                 keys = Object.keys(rows[0].data);
+             }
+             
+             setColumnConfigs(prev => {
+                  if (prev[id] && prev[id].length > 1) return prev; 
+                  if (keys.length === 0) return prev;
+                  
+                  const newCols: ColumnConfig[] = [
+                      { id: 'fileInfo', label: 'Identity', visible: true, width: '400px' },
+                      ...keys.map((key, idx) => ({
+                          id: key,
+                          label: key.charAt(0).toUpperCase() + key.slice(1),
+                          visible: true,
+                          width: '350px'
+                      }))
+                  ];
+                  return { ...prev, [id]: newCols };
+             });
+          }
+      }
+      setIsLoadingRows(false);
+  };
+
+  // --- Server Side Search Effect ---
+  // Only trigger when the search query specifically changes, not on dataset switch
+  useEffect(() => {
+      if (!selectedDatasetId) return;
+      
+      // Skip if query is empty (initial load handled by handleSelectDataset handles this)
+      // Actually, if user clears search, we DO want to fetch.
+      // But we want to avoid double-fetching when handleSelectDataset resets the search to ''.
+      
+      const timeoutId = setTimeout(() => {
+          fetchDatasetPage(selectedDatasetId, 1, filters.searchQuery);
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+  }, [filters.searchQuery]); // Removed selectedDatasetId dependency to avoid double-fetch on switch
+
   const handleSelectDataset = async (id: string) => {
+      // 1. Stop any pending operations/loading
+      setIsLoadingRows(true);
+      
+      // 2. Set State
       setSelectedDatasetId(id);
       setSelectedFolderId(null);
-      setDatasetRows([]);
-      setIsLoadingRows(true);
+      setDatasetRows([]); // Clear old rows immediately to prevent "ghost" edits
+      
+      // 3. Reset Search silently (without triggering the effect if possible, but React state updates trigger effects)
+      // Since we removed selectedDatasetId from effect deps, we just need to be careful.
+      // If we set search to '', the effect fires.
+      // We can batch this or just accept one fetch.
+      // Ideally: Manual Fetch Page 1 here.
+      
+      setFilters(prev => {
+          if (prev.searchQuery === '') return prev; // No change, no effect trigger
+          return { ...prev, searchQuery: '' };
+      });
 
-      if (window.electron?.getDatasetRows) {
-          const rows = await window.electron.getDatasetRows(id);
-          setDatasetRows(rows);
-          
-          // Get headers from dataset object if available, or fallback to first row
-          const currentDataset = datasets.find(d => d.id === id);
-          
-          let keys: string[] = [];
-          
-          if (currentDataset && currentDataset.headers && currentDataset.headers.length > 0) {
-              keys = currentDataset.headers;
-          } else if (rows.length > 0) {
-              // Fallback for old datasets without stored headers
-              keys = Object.keys(rows[0].data);
-          }
-          
-          // Generate Default Columns if not exists or if we have new keys
-          setColumnConfigs(prev => {
-              if (prev[id] && prev[id].length > 1) return prev; // already configured (length > 1 because of 'fileInfo')
-              
-              if (keys.length === 0) return prev;
-              
-              const newCols: ColumnConfig[] = [
-                  { id: 'fileInfo', label: 'Identity', visible: true, width: '400px' }, // Stick Left Col
-                  ...keys.map((key, idx) => ({
-                      id: key,
-                      label: key.charAt(0).toUpperCase() + key.slice(1),
-                      visible: true, // Show all columns by default
-                      width: '350px'
-                  }))
-              ];
-              
-              return { ...prev, [id]: newCols };
-          });
-      }
+      // 4. Fetch Data immediately
+      await fetchDatasetPage(id, 1, '');
       setIsLoadingRows(false);
   };
 
@@ -658,12 +694,17 @@ const App: React.FC = () => {
   };
 
   const handleUpdateRow = (rowId: string, newData: Record<string, any>) => {
-      // Optimistic update
-      setDatasetRows(prev => prev.map(r => r.id === rowId ? { ...r, data: newData } : r));
-      
-      // Persist
+      // 1. Optimistic update (Only if row is visible to avoid state errors)
+      const rowExists = datasetRows.some(r => r.id === rowId);
+      if (rowExists) {
+          setDatasetRows(prev => prev.map(r => r.id === rowId ? { ...r, data: newData } : r));
+      }
+
+      // 2. Persist (ALWAYS save to DB, even if row is no longer in view)
       if (window.electron?.updateDatasetRow) {
-          window.electron.updateDatasetRow(rowId, newData);
+          window.electron.updateDatasetRow(rowId, newData).catch(err => {
+              console.error("Failed to save row update:", err);
+          });
       }
   };
 
@@ -711,16 +752,7 @@ const App: React.FC = () => {
     return true;
   });
 
-  const filteredRows = datasetRows.filter(r => {
-      if (filters.searchQuery) {
-          const q = filters.searchQuery.toLowerCase();
-          const dataValues = Object.values(r.data).join(' ').toLowerCase();
-          const analysisValues = r.analysis ? Object.values(r.analysis).filter(v => typeof v === 'string').join(' ').toLowerCase() : '';
-          
-          if (!dataValues.includes(q) && !analysisValues.includes(q)) return false;
-      }
-      return true;
-  });
+  const filteredRows = datasetRows; // Server-side filtered
 
   const getPageTitle = () => {
     if (selectedDatasetId) {
@@ -1084,27 +1116,27 @@ const App: React.FC = () => {
     });
   }
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (selectedDatasetId) {
-        // Export Dataset
-        if (filteredRows.length === 0) return;
-        
+        // Export Dataset (Server-Side Streaming)
         const dynamicCols = activeColumns.filter(c => c.id !== 'fileInfo' && c.visible);
-        const headers = ['Index', ...dynamicCols.map(c => c.label)];
+        const exportColumns = dynamicCols.map(c => ({ id: c.id, label: c.label }));
         
-        const rows = filteredRows.map(r => {
-            const rowData = [String(r.rowIndex + 1)];
-            
-            dynamicCols.forEach(col => {
-                const val = r.analysis?.[col.id] !== undefined ? r.analysis[col.id] : r.data[col.id];
-                let strVal = val === undefined || val === null ? '' : String(val);
-                rowData.push(`"${strVal.replace(/"/g, '""')}"`);
-            });
-            return rowData.join(',');
-        });
-        
-        const csvContent = [headers.join(','), ...rows].join('\n');
-        downloadCSV(csvContent, `dataset_export_${selectedDatasetId}`);
+        if (window.electron?.exportDatasetCSV) {
+            setExportStatus({ status: 'exporting' });
+            const result = await window.electron.exportDatasetCSV(selectedDatasetId, filters.searchQuery, exportColumns);
+            if (result.success) {
+                setExportStatus({ 
+                    status: 'success', 
+                    filePath: result.filePath, 
+                    fileName: result.fileName 
+                });
+            } else if (result.error) {
+                setExportStatus({ status: 'error', error: result.error });
+            } else {
+                setExportStatus({ status: 'idle' });
+            }
+        }
         return;
     }
 
@@ -1114,40 +1146,66 @@ const App: React.FC = () => {
       return;
     }
 
-    const headers = [
-      'File Name', 'Title', 'Authors', 'Publication Year', 'DOI/URL', 'Article Type', 'Upload Date'
-    ];
-    const dynamicCols = activeColumns.filter(c => c.id !== 'fileInfo' && c.visible);
-    dynamicCols.forEach(col => headers.push(col.label));
+    setExportStatus({ status: 'exporting' });
 
-    const rows = filteredFiles.map(file => {
-        const meta = file.analysis?.metadata || {};
-        const authorsStr = Array.isArray(meta.authors) ? meta.authors.join('; ') : (meta.authors || '');
+    // Yield to UI thread so spinner appears
+    setTimeout(async () => {
+        try {
+            const headers = [
+              'File Name', 'Title', 'Authors', 'Publication Year', 'DOI/URL', 'Article Type', 'Upload Date'
+            ];
+            const dynamicCols = activeColumns.filter(c => c.id !== 'fileInfo' && c.visible);
+            dynamicCols.forEach(col => headers.push(col.label));
 
-        const rowData = [
-            `"${file.name.replace(/"/g, '""')}"`,
-            `"${(meta.title || '').replace(/"/g, '""')}"`,
-            `"${authorsStr.replace(/"/g, '""')}"`,
-            `"${(meta.publicationYear || '').replace(/"/g, '""')}"`,
-            `"${(meta.doi || '').replace(/"/g, '""')}"`,
-            `"${(meta.articleType || '').replace(/"/g, '""')}"`,
-            `"${new Date(file.uploadDate).toLocaleDateString()}"`
-        ];
+            const rows = filteredFiles.map(file => {
+                const meta = file.analysis?.metadata || {};
+                const authorsStr = Array.isArray(meta.authors) ? meta.authors.join('; ') : (meta.authors || '');
 
-        dynamicCols.forEach(col => {
-            let val: any = file.analysis?.[col.id];
-            if (Array.isArray(val)) val = val.join('; ');
-            else if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
-            if (val === undefined || val === null) val = '';
-            else val = String(val);
-            val = `"${val.replace(/"/g, '""')}"`;
-            rowData.push(val);
-        });
-        return rowData.join(',');
-    });
+                const rowData = [
+                    `"${file.name.replace(/"/g, '""')}"`,
+                    `"${(meta.title || '').replace(/"/g, '""')}"`,
+                    `"${authorsStr.replace(/"/g, '""')}"`,
+                    `"${(meta.publicationYear || '').replace(/"/g, '""')}"`,
+                    `"${(meta.doi || '').replace(/"/g, '""')}"`,
+                    `"${(meta.articleType || '').replace(/"/g, '""')}"`,
+                    `"${new Date(file.uploadDate).toLocaleDateString()}"`
+                ];
 
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    downloadCSV(csvContent, `research_lens_export_${selectedFolderId || 'all'}`);
+                dynamicCols.forEach(col => {
+                    let val: any = file.analysis?.[col.id];
+                    if (Array.isArray(val)) val = val.join('; ');
+                    else if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+                    if (val === undefined || val === null) val = '';
+                    else val = String(val);
+                    val = `"${val.replace(/"/g, '""')}"`;
+                    rowData.push(val);
+                });
+                return rowData.join(',');
+            });
+
+            const csvContent = [headers.join(','), ...rows].join('\n');
+            const prefix = `research_lens_export_${selectedFolderId || 'all'}`;
+
+            if (window.electron?.saveCSV) {
+                const result = await window.electron.saveCSV(csvContent, prefix);
+                if (result.success) {
+                    setExportStatus({ 
+                        status: 'success', 
+                        filePath: result.filePath, 
+                        fileName: result.fileName 
+                    });
+                } else {
+                    setExportStatus({ status: 'error', error: result.error });
+                }
+            } else {
+                 // Fallback for web
+                 downloadCSV(csvContent, prefix);
+                 setExportStatus({ status: 'idle' });
+            }
+        } catch (e: any) {
+            setExportStatus({ status: 'error', error: e.message });
+        }
+    }, 100);
   };
 
   const downloadCSV = (content: string, prefix: string) => {
@@ -1420,6 +1478,33 @@ const App: React.FC = () => {
                 </div>
              </div>
         </div>
+        
+        {selectedDatasetId && (
+            <div className="h-12 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-between px-6 shrink-0 z-20 text-sm">
+                <span className="text-gray-500 dark:text-gray-400">
+                    Showing {((pagination.page - 1) * pagination.pageSize) + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} rows
+                </span>
+                <div className="flex items-center gap-2">
+                    <button 
+                        disabled={pagination.page === 1}
+                        onClick={() => fetchDatasetPage(selectedDatasetId, pagination.page - 1, filters.searchQuery)}
+                        className="px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                        Previous
+                    </button>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium">
+                        Page {pagination.page}
+                    </span>
+                    <button 
+                        disabled={pagination.page * pagination.pageSize >= pagination.total}
+                        onClick={() => fetchDatasetPage(selectedDatasetId, pagination.page + 1, filters.searchQuery)}
+                        className="px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        )}
       </div>
 
       <RightSidebar 
@@ -1495,6 +1580,70 @@ const App: React.FC = () => {
                 {itemToDelete.type === 'column' ? 'Remove' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {exportStatus.status !== 'idle' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 w-96 p-6 animate-in fade-in zoom-in duration-100 text-center">
+            {exportStatus.status === 'exporting' && (
+               <>
+                 <div className="mx-auto w-12 h-12 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin mb-4"></div>
+                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Exporting Dataset...</h3>
+                 <p className="text-xs text-gray-500 dark:text-gray-400">Please wait while we process the entire database.</p>
+               </>
+            )}
+
+            {exportStatus.status === 'success' && (
+               <>
+                 <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-4">
+                    <Download size={24} />
+                 </div>
+                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Export Complete!</h3>
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 px-2">
+                    File saved to Downloads:<br/>
+                    <span className="font-mono mt-2 block bg-gray-50 dark:bg-gray-900/50 p-2 rounded border border-gray-100 dark:border-gray-700 break-all">
+                        {exportStatus.fileName}
+                    </span>
+                 </p>
+                 <div className="flex flex-col gap-2">
+                    <button
+                        onClick={() => {
+                            if (exportStatus.filePath && window.electron?.openExplorer) {
+                                window.electron.openExplorer(exportStatus.filePath);
+                            }
+                        }}
+                        className="w-full px-4 py-2 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded transition-colors"
+                    >
+                        Show in Folder
+                    </button>
+                    <button
+                        onClick={() => setExportStatus({ status: 'idle' })}
+                        className="w-full px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                        Close
+                    </button>
+                 </div>
+               </>
+            )}
+
+            {exportStatus.status === 'error' && (
+               <>
+                 <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mb-4">
+                    ×
+                 </div>
+                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Export Failed</h3>
+                 <p className="text-xs text-red-500 mb-6">{exportStatus.error}</p>
+                 <button
+                    onClick={() => setExportStatus({ status: 'idle' })}
+                    className="w-full px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                 >
+                    Dismiss
+                 </button>
+               </>
+            )}
           </div>
         </div>
       )}
