@@ -60,7 +60,7 @@ export const DatasetRowItem: React.FC<DatasetRowProps> = ({ row, columns, onAnal
         {/* Identity Column (Sticky Left) */}
         <div className={`flex-none w-[400px] p-4 border-r border-gray-100 dark:border-gray-700 flex flex-col gap-2 relative group/info sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] dark:shadow-black/50 ${
              row.status === 'analyzing'
-                ? 'bg-orange-50 dark:bg-orange-900/20 animate-pulse ring-1 ring-inset ring-orange-200 dark:ring-orange-800'
+                ? 'bg-orange-50 dark:bg-gray-800 ring-1 ring-inset ring-orange-200 dark:ring-orange-800'
                 : 'bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800'
         }`}>
              <div className="flex items-start gap-3">
