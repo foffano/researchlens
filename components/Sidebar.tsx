@@ -149,23 +149,25 @@ const SortableSidebarItem = ({
             ref={setNodeRef} 
             style={style} 
             {...attributes} 
-            className="group flex items-center gap-1 pr-2 mb-1 rounded-md transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+            className={`group flex items-center gap-1 pr-2 mb-1 rounded-md transition-colors ${
+                isSelected 
+                ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400' 
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
         >
              {/* Drag Handle */}
             <div 
                 {...listeners} 
-                className="p-1.5 cursor-grab text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className={`p-1.5 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity ${
+                    isSelected ? 'text-orange-400 dark:text-orange-500' : 'text-gray-300 hover:text-gray-500'
+                }`}
             >
                 <GripVertical size={12} />
             </div>
 
             <button
                 onClick={onSelect}
-                className={`flex-1 flex items-center gap-2 py-2 pr-2 text-sm font-medium rounded-md truncate ${
-                    isSelected
-                    ? 'text-orange-700 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400' 
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
+                className="flex-1 flex items-center gap-2 py-2 pr-2 text-sm font-medium rounded-md truncate bg-transparent border-none text-current"
                 title={item.data.name}
             >
                 {item.type === 'folder' 
@@ -181,14 +183,22 @@ const SortableSidebarItem = ({
                         e.stopPropagation();
                         setIsEditing(true);
                     }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-all"
+                    className={`p-1.5 rounded transition-all ${
+                        isSelected 
+                        ? 'text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-800/50' 
+                        : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                    }`}
                     title="Rename"
                 >
                     <Edit2 size={12} />
                 </button>
                 <button
                     onClick={onDelete}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all"
+                    className={`p-1.5 rounded transition-all ${
+                        isSelected 
+                        ? 'text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-800/50' 
+                        : 'text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30'
+                    }`}
                     title="Delete"
                 >
                     <Trash2 size={12} />
