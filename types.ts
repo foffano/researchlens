@@ -111,6 +111,7 @@ declare global {
       // Dataset Ops
       importDatasets: (files: { name: string; path: string }[]) => Promise<Dataset[]>;
       getDatasetRows: (datasetId: string, page: number, pageSize: number, search: string) => Promise<{ rows: DatasetRow[], total: number }>;
+      getDatasetStats: (datasetId: string) => Promise<{ totalPrompt: number, totalResponse: number, estimatedCost: number }>;
       exportDatasetCSV: (datasetId: string, search: string, columns: { id: string, label: string }[]) => Promise<{ success: boolean, filePath?: string, error?: string, canceled?: boolean }>;
       saveCSV: (content: string, prefix: string) => Promise<{ success: boolean, filePath?: string, fileName?: string, error?: string }>;
       updateDatasetRow: (id: string, data: any) => Promise<void>;

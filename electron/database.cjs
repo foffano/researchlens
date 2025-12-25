@@ -457,6 +457,26 @@ function getDatasetRowsCursor(datasetId, search = '') {
     return db.prepare(query).iterate(...params);
 }
 
+function getDatasetStats(datasetId) {
+    // Sum tokens from analysis table for all rows in this dataset
+    // We join dataset_rows to find the row IDs belonging to this dataset
+    const stmt = db.prepare(`
+        SELECT 
+            SUM(a.promptTokens) as totalPrompt, 
+            SUM(a.responseTokens) as totalResponse,
+            SUM(
+                (a.promptTokens / 1000000.0 * CASE WHEN a.model LIKE '%pro%' THEN 1.25 ELSE 0.10 END) +
+                (a.responseTokens / 1000000.0 * CASE WHEN a.model LIKE '%pro%' THEN 5.00 ELSE 0.40 END)
+            ) as estimatedCost
+        FROM analysis a
+        INNER JOIN dataset_rows r ON a.fileId = r.id
+        WHERE r.datasetId = ?
+    `);
+    
+    const result = stmt.get(datasetId);
+    return result || { totalPrompt: 0, totalResponse: 0, estimatedCost: 0 };
+}
+
 function getAnalysisForRows(rowIds) {
     if (rowIds.length === 0) return {};
     const placeholders = rowIds.map(() => '?').join(',');
@@ -735,5 +755,6 @@ module.exports = {
   getDatasetRows,
   updateDatasetRow,
   getDatasetRowsCursor,
+  getDatasetStats,
   getAnalysisForRows
 };

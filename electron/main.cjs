@@ -229,6 +229,10 @@ ipcMain.handle('get-dataset-rows', (event, { datasetId, page = 1, pageSize = 50,
     return db.getDatasetRows(datasetId, { limit, offset, search });
 });
 
+ipcMain.handle('get-dataset-stats', (event, datasetId) => {
+    return db.getDatasetStats(datasetId);
+});
+
 ipcMain.handle('export-dataset-csv', async (event, { datasetId, search, columns }) => {
     // Save to Downloads automatically
     const downloadsPath = app.getPath('downloads');

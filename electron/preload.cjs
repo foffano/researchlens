@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electron', {
   // Dataset Ops
   importDatasets: (files) => ipcRenderer.invoke('import-dataset', files),
   getDatasetRows: (datasetId, page, pageSize, search) => ipcRenderer.invoke('get-dataset-rows', { datasetId, page, pageSize, search }),
+  getDatasetStats: (datasetId) => ipcRenderer.invoke('get-dataset-stats', datasetId),
   exportDatasetCSV: (datasetId, search, columns) => ipcRenderer.invoke('export-dataset-csv', { datasetId, search, columns }),
   saveCSV: (content, prefix) => ipcRenderer.invoke('save-csv', { content, prefix }),
   updateDatasetRow: (id, data) => ipcRenderer.invoke('update-dataset-row', { id, data }),

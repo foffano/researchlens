@@ -35,6 +35,7 @@ interface SidebarProps {
   datasets: Dataset[];
   selectedFolderId: string | null;
   selectedDatasetId: string | null;
+  currentDatasetStats?: { totalPrompt: number, totalResponse: number, estimatedCost: number } | null;
   sidebarOrder?: string[];
   onSelectFolder: (id: string | null) => void;
   onSelectDataset: (id: string) => void;
@@ -202,7 +203,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   folders,
   datasets,
   selectedFolderId,
-  selectedDatasetId, 
+  selectedDatasetId,
+  currentDatasetStats, 
   sidebarOrder = [],
   onSelectFolder,
   onSelectDataset,
@@ -242,14 +244,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   const globalTokens = usageStats.reduce((acc, s) => acc + s.totalPrompt + s.totalResponse, 0);
+  const globalCost = usageStats.reduce((acc, s) => {
+        const isPro = s.model.includes('pro');
+        return acc + (s.totalPrompt / 1000000 * (isPro ? 1.25 : 0.10)) + (s.totalResponse / 1000000 * (isPro ? 5.00 : 0.40));
+  }, 0);
   
-  // Selection Stats
-  const selectionFiles = selectedFolderId 
+  // Selection Stats (Folder View)
+  const isFolderSelected = !!selectedFolderId;
+  const selectionFiles = isFolderSelected 
     ? files.filter(f => f.folderId === selectedFolderId)
-    : files;
+    : []; 
   
-  const selectionTokens = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.promptTokens || 0) + (f.analysis?._usage?.responseTokens || 0), 0);
-  const selectionCost = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.estimatedCost || 0), 0);
+  let viewTokens = 0;
+  let viewCost = 0;
+  let viewLabel = "Library Total";
+
+  if (selectedDatasetId && currentDatasetStats) {
+      viewLabel = "Dataset Total";
+      viewTokens = currentDatasetStats.totalPrompt + currentDatasetStats.totalResponse;
+      viewCost = currentDatasetStats.estimatedCost;
+  } else if (isFolderSelected) {
+      viewLabel = "Folder Total";
+      viewTokens = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.promptTokens || 0) + (f.analysis?._usage?.responseTokens || 0), 0);
+      viewCost = selectionFiles.reduce((acc, f) => acc + (f.analysis?._usage?.estimatedCost || 0), 0);
+  } else {
+      // Global View (Default)
+      viewTokens = globalTokens;
+      viewCost = globalCost;
+  }
 
   // Focus input when creation mode starts
   useEffect(() => {
@@ -440,18 +462,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Cost Monitor */}
                 {globalTokens > 0 && (
                     <div className="p-3 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg space-y-2">
+                        {/* Dynamic View Stats */}
+                        {(isFolderSelected || selectedDatasetId) && (
+                            <div className="border-b border-orange-200 dark:border-orange-800/50 pb-2 mb-2">
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">{viewLabel}</span>
+                                    <span className="text-[10px] font-mono font-bold text-orange-700 dark:text-orange-300">
+                                        ${(viewCost || 0).toFixed(4)}
+                                    </span>
+                                </div>
+                                <p className="text-[9px] text-orange-500/70 dark:text-orange-400/50">
+                                    {(viewTokens || 0).toLocaleString()} tokens
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Global Stats */}
                         <div>
                             <div className="flex items-center justify-between mb-0.5">
-                                <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Library Total</span>
-                                <span className="text-[10px] font-mono font-bold text-orange-700 dark:text-orange-300">
-                                    ${(usageStats.reduce((acc, s) => {
-                                        const isPro = s.model.includes('pro');
-                                        return acc + (s.totalPrompt / 1000000 * (isPro ? 1.25 : 0.10)) + (s.totalResponse / 1000000 * (isPro ? 5.00 : 0.40));
-                                    }, 0)).toFixed(4)}
+                                <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Library Total</span>
+                                <span className="text-[10px] font-mono font-bold text-gray-600 dark:text-gray-300">
+                                    ${(globalCost || 0).toFixed(4)}
                                 </span>
                             </div>
-                            <p className="text-[9px] text-orange-500/70 dark:text-orange-400/50">
-                                {globalTokens.toLocaleString()} total tokens
+                            <p className="text-[9px] text-gray-400 dark:text-gray-500">
+                                {(globalTokens || 0).toLocaleString()} tokens
                             </p>
                         </div>
                     </div>

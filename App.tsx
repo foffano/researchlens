@@ -156,6 +156,7 @@ const App: React.FC = () => {
   const [isLoadingRows, setIsLoadingRows] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0 });
   const [exportStatus, setExportStatus] = useState<{ status: 'idle' | 'exporting' | 'success' | 'error', filePath?: string, fileName?: string, error?: string }>({ status: 'idle' });
+  const [currentDatasetStats, setCurrentDatasetStats] = useState<{ totalPrompt: number, totalResponse: number, estimatedCost: number } | null>(null);
   const [pinnedColumns, setPinnedColumns] = useState<Record<string, string>>({}); // datasetId -> columnId
 
   // --- State: Settings ---
@@ -525,6 +526,12 @@ const App: React.FC = () => {
           const { rows, total } = await window.electron.getDatasetRows(id, page, 50, search);
           setDatasetRows(rows);
           setPagination({ page, pageSize: 50, total });
+
+          // Fetch stats for this dataset
+          if (window.electron?.getDatasetStats) {
+             const stats = await window.electron.getDatasetStats(id);
+             setCurrentDatasetStats(stats);
+          }
           
           // Header Logic (moved here to ensure it runs on first load)
           if (page === 1) {
@@ -580,6 +587,7 @@ const App: React.FC = () => {
       setSelectedDatasetId(id);
       setSelectedFolderId(null);
       setDatasetRows([]); // Clear old rows immediately to prevent "ghost" edits
+      setCurrentDatasetStats(null);
       
       // 3. Reset Search silently (without triggering the effect if possible, but React state updates trigger effects)
       // Since we removed selectedDatasetId from effect deps, we just need to be careful.
@@ -691,7 +699,13 @@ const App: React.FC = () => {
 
           // Save
           if (window.electron?.saveAnalysis) {
-              window.electron.saveAnalysis(rowId, result);
+              await window.electron.saveAnalysis(rowId, result);
+              
+              // Refresh Stats
+              if (window.electron?.getDatasetStats && selectedDatasetId) {
+                  const newStats = await window.electron.getDatasetStats(selectedDatasetId);
+                  setCurrentDatasetStats(newStats);
+              }
           }
 
       } catch (error) {
@@ -1262,6 +1276,7 @@ const App: React.FC = () => {
         datasets={datasets}
         selectedFolderId={selectedFolderId}
         selectedDatasetId={selectedDatasetId}
+        currentDatasetStats={currentDatasetStats}
         sidebarOrder={settings.sidebarOrder}
         onSelectFolder={(id) => { setSelectedFolderId(id); setSelectedDatasetId(null); }}
         onSelectDataset={handleSelectDataset}
