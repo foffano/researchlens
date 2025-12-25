@@ -284,17 +284,32 @@ const App: React.FC = () => {
       window.electron?.saveSettings({ sidebarOrder: newOrder });
   };
 
-  const handleRenameFolder = (id: string, name: string) => {
+  const handleRenameFolder = async (id: string, name: string) => {
+      // Optimistic UI Update
+      setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+      
+      // Backend Sync
       if (window.electron?.renameFolder) {
-          window.electron.renameFolder(id, name);
-          setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+          try {
+              await window.electron.renameFolder(id, name);
+          } catch (error) {
+              console.error("Failed to rename folder:", error);
+              // Optional: Revert state here if needed
+          }
       }
   };
 
-  const handleRenameDataset = (id: string, name: string) => {
+  const handleRenameDataset = async (id: string, name: string) => {
+      // Optimistic UI Update
+      setDatasets(prev => prev.map(d => d.id === id ? { ...d, name } : d));
+      
+      // Backend Sync
       if (window.electron?.renameDataset) {
-          window.electron.renameDataset(id, name);
-          setDatasets(prev => prev.map(d => d.id === id ? { ...d, name } : d));
+           try {
+              await window.electron.renameDataset(id, name);
+           } catch (error) {
+              console.error("Failed to rename dataset:", error);
+           }
       }
   };
 

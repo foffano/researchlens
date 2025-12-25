@@ -95,6 +95,11 @@ const SortableSidebarItem = ({
         }
     }, [isEditing]);
 
+    // Sync editName when item name changes from outside (or successful rename)
+    useEffect(() => {
+        setEditName(item.data.name);
+    }, [item.data.name]);
+
     const handleSave = () => {
         if (editName.trim() && editName !== item.data.name) {
             onRename(editName.trim());
